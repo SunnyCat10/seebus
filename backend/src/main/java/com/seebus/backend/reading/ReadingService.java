@@ -1,5 +1,6 @@
 package com.seebus.backend.reading;
 
+import com.seebus.backend.station.StationService;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -12,7 +13,20 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class ReadingService {
     private final ConcurrentLinkedQueue<StationReading> readings = new ConcurrentLinkedQueue<>();
 
+    private final StationService stationService;
+
+    public ReadingService(StationService stationService) {
+        this.stationService = stationService;
+    }
+
     public StationReading addReading(StationReadingRequest request) {
+
+        if (!stationService.exists(request.stationId())) {
+            throw new IllegalArgumentException(
+                    "Unknown station: " + request.stationId()
+            );
+        }
+        
         StationReading reading = new StationReading(
                 UUID.randomUUID(),
                 request.stationId(),

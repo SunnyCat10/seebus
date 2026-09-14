@@ -1,8 +1,10 @@
 package com.seebus.backend.api;
 
+import com.seebus.backend.common.Verification;
 import com.seebus.backend.reading.ReadingService;
 import com.seebus.backend.reading.StationReading;
 import com.seebus.backend.reading.StationReadingRequest;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,20 +22,7 @@ public class ReadingController {
     }
 
     @PostMapping
-    public ResponseEntity<StationReading> addReading(@RequestBody StationReadingRequest request) {
-
-        if (request.stationId() == null || request.stationId().isBlank()) {
-            return ResponseEntity.badRequest().build();
-        }
-
-        if (request.occupancy() == null || request.occupancy() < 0 || request.occupancy() > 1) {
-            return ResponseEntity.badRequest().build();
-        }
-        
-        if (request.measuredAt() == null) {
-            return ResponseEntity.badRequest().build();
-        }
-
+    public ResponseEntity<StationReading> addReading(@Valid @RequestBody StationReadingRequest request) {
         StationReading reading = readingService.addReading(request);
 
         return ResponseEntity.created(URI.create("/api/readings" + reading.id())).body(reading);
