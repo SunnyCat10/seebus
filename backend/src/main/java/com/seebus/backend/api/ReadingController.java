@@ -1,6 +1,5 @@
 package com.seebus.backend.api;
 
-import com.seebus.backend.common.Verification;
 import com.seebus.backend.reading.ReadingService;
 import com.seebus.backend.reading.StationReading;
 import com.seebus.backend.reading.StationReadingRequest;
