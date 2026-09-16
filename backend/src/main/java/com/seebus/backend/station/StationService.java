@@ -27,4 +27,12 @@ public class StationService {
     public boolean exists(String id) {
         return stations.containsKey(id);
     }
+
+    public void replaceAll(Collection<Station> newStations) {
+        stations.clear();
+
+        for (Station station : newStations) {
+            stations.put(station.id(), station);
+        }
+    }
 }
