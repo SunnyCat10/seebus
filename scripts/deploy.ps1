@@ -1,13 +1,19 @@
-$hostName = $env:SEEBUS_DEPLOY_HOST
+param(
+    [string]$HostName = $env:SEEBUS_DEPLOY_HOST
+)
 
-if (-not $hostName) {
+if (-not $HostName) {
     Write-Error "SEEBUS_DEPLOY_HOST is not set."
     exit 1
 }
 
+$keyPath = "$HOME\.ssh\gerbil"
+
 Write-Host "Deploying Seebus..."
 
-ssh "opc@$hostName" `
+ssh `
+    -i $keyPath `
+    "opc@$HostName" `
     "cd ~/seebus && ./deploy/deploy.sh"
 
 if ($LASTEXITCODE -ne 0) {
