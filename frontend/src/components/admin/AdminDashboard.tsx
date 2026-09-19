@@ -1,16 +1,14 @@
-import { useState } from "react";
+import {useEffect, useState} from "react";
 import {
     Alert,
     Badge,
     Box,
     Button,
     Container,
-    Flex,
-    Heading,
-    HStack,
+    Heading, Spinner,
     Stack,
     Tabs,
-    Text,
+    Text, VStack,
 } from "@chakra-ui/react";
 
 import {
@@ -20,7 +18,7 @@ import {
     LuSave,
 } from "react-icons/lu";
 
-import { updateAdminConfig } from "../../api/seebusApi";
+import {getAdminConfig, updateAdminConfig} from "../../api/seebusApi";
 
 import type {AdminConfig} from "../../types/adminConfig";
 import {AdminHeader} from "./AdminHeader.tsx";
@@ -53,6 +51,9 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
     const [config, setConfig] =
         useState<AdminConfig>(emptyConfig);
 
+    const [loading, setLoading] =
+        useState(true);
+
     const [dirty, setDirty] =
         useState(false);
 
@@ -61,6 +62,41 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
 
     const [status, setStatus] =
         useState<SaveStatus>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const loadConfig = async () => {
+            try {
+                const loadedConfig =
+                    await getAdminConfig(adminToken);
+
+                if (cancelled) {
+                    return;
+                }
+
+                setConfig(loadedConfig);
+                setDirty(false);
+            } catch {
+                if (!cancelled) {
+                    setStatus({
+                        type: "error",
+                        message: "Could not load configuration",
+                    });
+                }
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        void loadConfig();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [adminToken]);
 
     const updateConfig: ConfigUpdater = (updater) => {
         setConfig(updater);
@@ -104,6 +140,13 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
         >
             <AdminHeader/>
 
+            { loading && (
+                <VStack colorPalette="teal">
+                    <Spinner color="colorPalette.600" size="xl"/>
+                    <Text color="colorPalette.600">Loading...</Text>
+                </VStack>
+            )}
+
             <Container
                 maxW="7xl"
                 py="8"
@@ -118,9 +161,19 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
                             color="fg.muted"
                             mt="1"
                         >
-                            Manage stations, buses, and the
-                            default SeeBus schedule
+                            Manage stations, buses, and the default SeeBus schedule
                         </Text>
+
+                        <Button
+                            colorPalette="teal"
+                            disabled={!dirty}
+                            loading={saving}
+                            loadingText="Saving"
+                            onClick={() => void save()}
+                        >
+                            <LuSave />
+                            Save changes
+                        </Button>
                     </Box>
 
                     <Tabs.Root
@@ -211,51 +264,6 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
                             </Alert.Content>
                         </Alert.Root>
                     )}
-
-                    <Flex
-                        position="sticky"
-                        bottom="0"
-                        zIndex="10"
-                        justify="space-between"
-                        align="center"
-                        px="5"
-                        py="4"
-                        borderWidth="1px"
-                        borderColor="whiteAlpha.200"
-                        borderRadius="xl"
-                        bg="rgba(5, 13, 32, 0.94)"
-                        backdropFilter="blur(12px)"
-                    >
-                        <HStack gap="3">
-                            <Text color="fg.muted">
-                                Configuration status
-                            </Text>
-
-                            <Badge
-                                colorPalette={
-                                    dirty
-                                        ? "orange"
-                                        : "green"
-                                }
-                            >
-                                {dirty
-                                    ? "Unsaved changes"
-                                    : "Up to date"}
-                            </Badge>
-                        </HStack>
-
-                        <Button
-                            colorPalette="teal"
-                            disabled={!dirty}
-                            loading={saving}
-                            loadingText="Saving"
-                            onClick={() => void save()}
-                        >
-                            <LuSave />
-
-                            Save changes
-                        </Button>
-                    </Flex>
                 </Stack>
             </Container>
         </Box>

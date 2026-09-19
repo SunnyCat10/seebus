@@ -44,6 +44,27 @@ export async function updateAdminConfig(
     }
 }
 
+export const getAdminConfig = async (
+    adminToken: string,
+): Promise<AdminConfig> => {
+    const response = await fetch(
+        `${API_BASE_URL}/api/admin/config`,
+        {
+            headers: {
+                Authorization: `Bearer ${adminToken}`,
+            },
+        },
+    );
+
+    if (!response.ok) {
+        throw new Error(
+            "Could not load configuration",
+        );
+    }
+
+    return response.json();
+};
+
 export async function verifyAdminToken(
     token: string,
 ): Promise<boolean> {

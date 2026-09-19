@@ -3,6 +3,7 @@ package com.seebus.backend.station;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -17,7 +18,7 @@ public class StationService {
     }
 
     public Collection<Station> getStations() {
-        return stations.values();
+        return List.copyOf(stations.values());
     }
 
     public Station getStation(String id) {
@@ -35,4 +36,5 @@ public class StationService {
             stations.put(station.id(), station);
         }
     }
+
 }

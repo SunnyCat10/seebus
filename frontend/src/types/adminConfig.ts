@@ -1,13 +1,5 @@
-export interface StationConfig {
-    id: string;
-    name: string;
-}
-
-export interface BusConfig {
-    id: string;
-    name: string;
-    capacity: number;
-}
+import type {Bus} from "./bus.ts";
+import type {Station} from "./station.ts";
 
 export interface ScheduleEntryConfig {
     busId: string;
@@ -16,7 +8,7 @@ export interface ScheduleEntryConfig {
 }
 
 export interface AdminConfig {
-    stations: StationConfig[];
-    buses: BusConfig[];
+    stations: Station[];
+    buses: Bus[];
     defaultSchedule: ScheduleEntryConfig[];
 }

@@ -1,5 +1,6 @@
 import {Box, Button, Card, EmptyState, Flex, IconButton, Input, NumberInput, Table} from "@chakra-ui/react";
-import type {AdminConfig, BusConfig} from "../../../types/adminConfig.ts";
+import type {AdminConfig} from "../../../types/adminConfig.ts";
+import type {Bus} from "../../../types/bus.ts";
 import type {ConfigUpdater} from "../AdminDashboard.tsx";
 import {LuBusFront, LuPlus, LuTrash2} from "react-icons/lu";
 
@@ -26,7 +27,7 @@ export const BusesTab = (props: BusesTabProps,) => {
         }));
     };
 
-    const updateBus = (index: number, patch: Partial<BusConfig>) => {
+    const updateBus = (index: number, patch: Partial<Bus>) => {
         updateConfig((current) => ({
             ...current,
 
@@ -142,7 +143,7 @@ export const BusesTab = (props: BusesTabProps,) => {
                             {config.buses.map(
                                 (bus, index) => (
                                     <Table.Row
-                                        key={`${bus.id}-${index}`}
+                                        key={`${index}`}
                                     >
                                         <Table.Cell>
                                             <Input

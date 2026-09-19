@@ -1,7 +1,9 @@
-import {Alert, Box, Button, Card, EmptyState, Flex, IconButton, Input, NativeSelect, Table} from "@chakra-ui/react";
+import {Alert, Box, Button, Card, EmptyState, Flex, IconButton, Table} from "@chakra-ui/react";
 import type {AdminConfig, ScheduleEntryConfig} from "../../../types/adminConfig.ts";
 import type {ConfigUpdater} from "../AdminDashboard.tsx";
 import {LuCalendarClock, LuPlus, LuTrash2} from "react-icons/lu";
+import {ConfigSelect} from "../ConfigSelect.tsx";
+import {ScheduleTimeInput} from "../ScheduleTimeInput.tsx";
 
 export interface ScheduleTabProps {
     config: AdminConfig;
@@ -79,7 +81,7 @@ export const ScheduleTab = (props: ScheduleTabProps) => {
 
                         <Card.Description>
                             Base schedule used before dynamic
-                            policies modify service.
+                            policies modify service
                         </Card.Description>
                     </Box>
 
@@ -147,7 +149,6 @@ export const ScheduleTab = (props: ScheduleTabProps) => {
                 ) : (
                     <Table.Root
                         variant="outline"
-                        interactive
                     >
                         <Table.Header>
                             <Table.Row>
@@ -175,113 +176,47 @@ export const ScheduleTab = (props: ScheduleTabProps) => {
                             {config.defaultSchedule.map(
                                 (entry, index) => (
                                     <Table.Row
-                                        key={`${entry.busId}-${entry.stationId}-${entry.time}-${index}`}
+                                        key={`${index}`}
                                     >
                                         <Table.Cell>
-                                            <NativeSelect.Root
-                                                size="sm"
-                                            >
-                                                <NativeSelect.Field
-                                                    value={
-                                                        entry.busId
-                                                    }
-                                                    onChange={(event) =>
-                                                        updateEntry(
-                                                            index,
-                                                            {
-                                                                busId:
-                                                                event
-                                                                    .target
-                                                                    .value,
-                                                            },
-                                                        )
-                                                    }
-                                                >
-                                                    {config.buses.map(
-                                                        (
-                                                            bus,
-                                                        ) => (
-                                                            <option
-                                                                key={
-                                                                    bus.id
-                                                                }
-                                                                value={
-                                                                    bus.id
-                                                                }
-                                                            >
-                                                                {bus.name ||
-                                                                    bus.id}
-                                                            </option>
-                                                        ),
-                                                    )}
-                                                </NativeSelect.Field>
-
-                                                <NativeSelect.Indicator />
-                                            </NativeSelect.Root>
-                                        </Table.Cell>
-
-                                        <Table.Cell>
-                                            <NativeSelect.Root
-                                                size="sm"
-                                            >
-                                                <NativeSelect.Field
-                                                    value={
-                                                        entry.stationId
-                                                    }
-                                                    onChange={(
-                                                        event,
-                                                    ) =>
-                                                        updateEntry(
-                                                            index,
-                                                            {
-                                                                stationId:
-                                                                event
-                                                                    .target
-                                                                    .value,
-                                                            },
-                                                        )
-                                                    }
-                                                >
-                                                    {config.stations.map(
-                                                        (
-                                                            station,
-                                                        ) => (
-                                                            <option
-                                                                key={
-                                                                    station.id
-                                                                }
-                                                                value={
-                                                                    station.id
-                                                                }
-                                                            >
-                                                                {station.name ||
-                                                                    station.id}
-                                                            </option>
-                                                        ),
-                                                    )}
-                                                </NativeSelect.Field>
-
-                                                <NativeSelect.Indicator />
-                                            </NativeSelect.Root>
-                                        </Table.Cell>
-
-                                        <Table.Cell>
-                                            <Input
-                                                size="sm"
-                                                type="time"
-                                                value={
-                                                    entry.time
+                                            <ConfigSelect
+                                                value={entry.busId}
+                                                placeholder="Select bus"
+                                                items={config.buses.map((bus) => ({
+                                                    value: bus.id,
+                                                    label: bus.name || bus.id,
+                                                }))}
+                                                onChange={(busId) =>
+                                                    updateEntry(index, {
+                                                        busId,
+                                                    })
                                                 }
-                                                onChange={(event) =>
-                                                    updateEntry(
-                                                        index,
-                                                        {
-                                                            time:
-                                                            event
-                                                                .target
-                                                                .value,
-                                                        },
-                                                    )
+                                            />
+                                        </Table.Cell>
+
+                                        <Table.Cell>
+                                            <ConfigSelect
+                                                value={entry.stationId}
+                                                placeholder="Select station"
+                                                items={config.stations.map((station) => ({
+                                                    value: station.id,
+                                                    label: station.name || station.id,
+                                                }))}
+                                                onChange={(stationId) =>
+                                                    updateEntry(index, {
+                                                        stationId,
+                                                    })
+                                                }
+                                            />
+                                        </Table.Cell>
+
+                                        <Table.Cell>
+                                            <ScheduleTimeInput
+                                                value={entry.time}
+                                                onChange={(time) =>
+                                                    updateEntry(index, {
+                                                        time,
+                                                    })
                                                 }
                                             />
                                         </Table.Cell>

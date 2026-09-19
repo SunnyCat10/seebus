@@ -1,6 +1,9 @@
+import type {Bus} from "./bus.ts";
+import type {Station} from "./station.ts";
+
 export interface ScheduledStop {
-    busId: string;
-    stationId: string;
+    bus: Bus;
+    station: Station;
     arrivalTime: string;
 }
 

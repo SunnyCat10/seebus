@@ -1,6 +1,7 @@
 import {Box, Button, Card, EmptyState, Flex, IconButton, Input, Table} from "@chakra-ui/react";
-import type {AdminConfig, StationConfig} from "../../../types/adminConfig.ts";
-import type {ConfigUpdater} from "../AdminDashboard.tsx";
+import type {AdminConfig} from "../../../types/adminConfig.ts";
+import type {ConfigUpdater} from "../AdminDashboard.tsx"
+import type {Station} from "../../../types/station.ts";
 import {LuMapPin, LuPlus, LuTrash2} from "react-icons/lu";
 
 export interface StationsTabProps {
@@ -25,7 +26,7 @@ export const StationsTab = (props: StationsTabProps) => {
         }));
     };
 
-    const updateStation = (index: number, patch: Partial<StationConfig>) => {
+    const updateStation = (index: number, patch: Partial<Station>) => {
         updateConfig((current) => ({
             ...current,
 
@@ -138,7 +139,7 @@ export const StationsTab = (props: StationsTabProps) => {
                             {config.stations.map(
                                 (station, index) => (
                                     <Table.Row
-                                        key={`${station.id}-${index}`}
+                                        key={`${index}`}
                                     >
                                         <Table.Cell>
                                             <Input
