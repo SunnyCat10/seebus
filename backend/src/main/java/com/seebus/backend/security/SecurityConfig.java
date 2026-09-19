@@ -22,8 +22,9 @@ public class SecurityConfig {
     public UrlBasedCorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of(
+        configuration.setAllowedOriginPatterns(List.of(
                 "https://seebus.bolognese.dev",
+                "https://*-seebus.*.workers.dev",
                 "http://localhost:5173"
         ));
 
