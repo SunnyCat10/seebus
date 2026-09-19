@@ -43,3 +43,18 @@ export async function updateAdminConfig(
         );
     }
 }
+
+export async function verifyAdminToken(
+    token: string,
+): Promise<boolean> {
+    const response = await fetch(
+        `${API_BASE_URL}/api/admin/verify`,
+        {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            },
+        },
+    );
+
+    return response.ok;
+}
