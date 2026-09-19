@@ -85,4 +85,12 @@ public class ConfigService {
             }
         }
     }
+
+    public AdminConfigResponse getConfiguration() {
+        return new AdminConfigResponse(
+                stationService.getStations(),
+                busService.getBuses(),
+                scheduleService.getDefaultSchedule()
+        );
+    }
 }

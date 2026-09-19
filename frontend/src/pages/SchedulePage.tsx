@@ -24,7 +24,7 @@ export function SchedulePage() {
             }
         }
 
-        loadSchedule();
+        void loadSchedule();
 
         const interval = setInterval(loadSchedule, 60000);
 
@@ -72,10 +72,10 @@ export function SchedulePage() {
                     <Stack gap="3">
                         {schedule?.entries.map((entry, index) => (
                             <ScheduleCard
-                                key={`${entry.busId}-${entry.stationId}-${entry.arrivalTime}`}
+                                key={`${entry.bus.id}-${entry.station.id}-${entry.arrivalTime}`}
                                 arrivalTime={entry.arrivalTime}
-                                station={entry.stationId}
-                                bus={entry.busId}
+                                station={entry.station.name}
+                                bus={entry.bus.name}
                                 next={index === 0}
                                 now={now}
                             />

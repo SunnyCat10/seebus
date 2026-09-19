@@ -3,6 +3,7 @@ package com.seebus.backend.bus;
 import org.springframework.stereotype.Service;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -11,7 +12,7 @@ public class BusService {
     private final Map<String, Bus> buses = new ConcurrentHashMap<>();
 
     public Collection<Bus> getBuses() {
-        return buses.values();
+        return List.copyOf(buses.values());
     }
 
     public Bus getBus(String id) {
