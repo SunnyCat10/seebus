@@ -38,7 +38,7 @@ export const PageLayout = (props : PageLayoutProps) => {
                 bgPos="center top"
                 bgSize="cover"
                 bgRepeat="no-repeat"
-                opacity="0.42"
+                opacity="0.48"
                 pointerEvents="none"
             >
                 <TransitBackground/>

@@ -1,4 +1,4 @@
-import { DateInput } from "@chakra-ui/react";
+import {DateInput} from "@chakra-ui/react";
 import {
     CalendarDateTime,
     DateFormatter,
@@ -10,25 +10,38 @@ interface ScheduleTimeInputProps {
 }
 
 const formatter = new DateFormatter(
-    "en-US",
+    "en-GB",
     {
-        hour: "numeric",
+        hour: "2-digit",
         minute: "2-digit",
+        hourCycle: "h23",
     },
 );
 
-const parseTime = (
-    value: string,
-): CalendarDateTime[] => {
-    const match =
-        /^(\d{2}):(\d{2})$/.exec(value);
-
-    if (!match) {
+const parseTime = (value: string): CalendarDateTime[] => {
+    if (!value) {
         return [];
     }
 
-    const hour = Number(match[1]);
-    const minute = Number(match[2]);
+    const parts = value.split(":");
+
+    if (parts.length < 2) {
+        return [];
+    }
+
+    const hour = Number(parts[0]);
+    const minute = Number(parts[1]);
+
+    if (
+        Number.isNaN(hour) ||
+        Number.isNaN(minute) ||
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59
+    ) {
+        return [];
+    }
 
     return [
         new CalendarDateTime(
@@ -45,25 +58,21 @@ const formatTime = (
     hour: number,
     minute: number,
 ) => {
-    return `${String(hour).padStart(2, "0")}:${String(
-        minute,
-    ).padStart(2, "0")}`;
+    return (
+        `${String(hour).padStart(2, "0")}:` +
+        `${String(minute).padStart(2, "0")}`
+    );
 };
 
-export const ScheduleTimeInput = (
-    props: ScheduleTimeInputProps,
-) => {
-    const {
-        value,
-        onChange,
-    } = props;
+export const ScheduleTimeInput = (props: ScheduleTimeInputProps) => {
+    const {value, onChange} = props;
 
     return (
         <DateInput.Root
             value={parseTime(value)}
             granularity="minute"
             formatter={formatter}
-            hourCycle={12}
+            hourCycle={24}
             shouldForceLeadingZeros
             size="sm"
             onValueChange={(details) => {

@@ -47,42 +47,36 @@ interface EtaProps {
     minutes: number;
 }
 
+interface EtaProps {
+    minutes: number;
+}
+
 const Eta = (props : EtaProps) => {
     const {minutes} = props;
 
-    if (minutes < 60) {
-        return (
-            <Stack
-                gap="0"
-                align="center"
-                minW="96px"
-            >
-                <Text
-                    fontSize={{
-                        base: "4xl",
-                        md: "5xl",
-                    }}
-                    fontWeight="bold"
-                    lineHeight="0.9"
-                    color="white"
-                >
-                    {minutes}
-                </Text>
-
-                <Text
-                    mt="1"
-                    fontSize="sm"
-                    fontWeight="medium"
-                    color="whiteAlpha.850"
-                >
-                    minutes
-                </Text>
-            </Stack>
-        );
-    }
-
+    const hasHours = minutes >= 60;
     const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
+    const remainingMinutes = hasHours ? minutes % 60 : minutes;
+    const arriving = minutes <= 1;
+
+    const numberColor =
+        arriving
+            ? "red.200"
+            : hasHours
+                ? "whiteAlpha.650"
+                : "white";
+
+    const labelColor =
+        arriving
+            ? "red.200"
+            : hasHours
+                ? "whiteAlpha.600"
+                : "whiteAlpha.850";
+
+    const numberWeight =
+        hasHours
+            ? "medium"
+            : "bold";
 
     return (
         <HStack
@@ -91,18 +85,25 @@ const Eta = (props : EtaProps) => {
                 md: "7",
             }}
             align="flex-end"
+            justify="flex-end"
         >
             <Stack
                 gap="0"
                 align="center"
                 minW="56px"
+                visibility={
+                    hasHours
+                        ? "visible"
+                        : "hidden"
+                }
+                aria-hidden={!hasHours}
             >
                 <Text
                     fontSize={{
                         base: "4xl",
                         md: "5xl",
                     }}
-                    fontWeight="bold"
+                    fontWeight="medium"
                     lineHeight="0.9"
                     color="whiteAlpha.650"
                 >
@@ -114,7 +115,6 @@ const Eta = (props : EtaProps) => {
                     fontSize="xs"
                     fontWeight="medium"
                     color="whiteAlpha.600"
-                    textTransform="lowercase"
                 >
                     hours
                 </Text>
@@ -130,26 +130,29 @@ const Eta = (props : EtaProps) => {
                         base: "4xl",
                         md: "5xl",
                     }}
-                    fontWeight="bold"
+                    fontWeight={numberWeight}
                     lineHeight="0.9"
-                    color="whiteAlpha.650"
+                    color={numberColor}
                 >
                     {remainingMinutes}
                 </Text>
 
                 <Text
                     mt="1"
-                    fontSize="xs"
+                    fontSize={
+                        hasHours
+                            ? "xs"
+                            : "sm"
+                    }
                     fontWeight="medium"
-                    color="whiteAlpha.600"
-                    textTransform="lowercase"
+                    color={labelColor}
                 >
                     minutes
                 </Text>
             </Stack>
         </HStack>
     );
-}
+};
 
 export const ScheduleCard =(props: ScheduleCardProps)=> {
     const {arrivalTime, station, bus, now,} = props;
