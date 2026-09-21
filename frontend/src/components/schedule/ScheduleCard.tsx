@@ -58,20 +58,18 @@ const Eta = ({minutes}: EtaProps) => {
             ? minutes % 60
             : minutes;
 
-    // Same size + weight everywhere.
-    // Only the color/opacity communicates priority.
     const numberColor =
         arriving
             ? "red.200"
             : hasHours
-                ? "whiteAlpha.650"
-                : "white";
+                ? "whiteAlpha.600"
+                : "whiteAlpha";
 
     const labelColor =
         arriving
             ? "red.300"
             : hasHours
-                ? "whiteAlpha.450"
+                ? "whiteAlpha.400"
                 : "whiteAlpha.700";
 
     return (
@@ -83,8 +81,6 @@ const Eta = ({minutes}: EtaProps) => {
             align="flex-end"
             justify="flex-end"
         >
-            {/* Hours slot always occupies space so the
-                minutes column never shifts horizontally. */}
             <Stack
                 gap="0"
                 align="center"
@@ -103,7 +99,7 @@ const Eta = ({minutes}: EtaProps) => {
                     }}
                     fontWeight="bold"
                     lineHeight="0.9"
-                    color={numberColor}
+                    color="whiteAlpha.600"
                 >
                     {hours}
                 </Text>
@@ -112,7 +108,7 @@ const Eta = ({minutes}: EtaProps) => {
                     mt="1"
                     fontSize="sm"
                     fontWeight="bold"
-                    color={labelColor}
+                    color="whiteAlpha.400"
                 >
                     hours
                 </Text>
@@ -147,6 +143,7 @@ const Eta = ({minutes}: EtaProps) => {
         </HStack>
     );
 };
+
 export const ScheduleCard = (
     props: ScheduleCardProps,
 ) => {
