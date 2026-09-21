@@ -1,6 +1,12 @@
 param(
-    [string]$HostName = $env:SEEBUS_DEPLOY_HOST
+    [string]$HostName
 )
+
+. "$PSScriptRoot\load-env.ps1"
+
+if (-not $HostName) {
+    $HostName = $env:SEEBUS_DEPLOY_HOST
+}
 
 if (-not $HostName) {
     Write-Error "SEEBUS_DEPLOY_HOST is not set."
@@ -9,7 +15,7 @@ if (-not $HostName) {
 
 $keyPath = "$HOME\.ssh\gerbil"
 
-Write-Host "Deploying Seebus..."
+Write-Host "Deploying SeeBus to $HostName..."
 
 ssh `
     -i $keyPath `

@@ -62,6 +62,15 @@ public class SecurityConfig {
                                 auth -> auth
 
                                     // Public:
+                                        // Swagger / OpenAPI -> Registered only on local machine and not on production
+                                        .requestMatchers(
+                                                "/swagger-ui.html",
+                                                "/swagger-ui/**",
+                                                "/v3/api-docs",
+                                                "/v3/api-docs/**"
+                                        ).permitAll()
+
+                                        // Public API
                                         .requestMatchers(
                                                 HttpMethod.GET,
                                                 "/api/health",

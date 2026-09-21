@@ -1,23 +1,22 @@
 package com.seebus.backend.reading;
 
+import com.seebus.backend.station.Station;
 import com.seebus.backend.station.StationService;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 @Service
 public class ReadingService {
-    //TODO: make it of fixed size and probably cyclic so it can`t grow infinitely
-    private final ConcurrentLinkedQueue<StationReading> readings = new ConcurrentLinkedQueue<>();
+    private static final int MAX_READINGS = 100;
+
+    private final ArrayDeque<StationReading> readings = new ArrayDeque<>(MAX_READINGS);
+    private final Object readingLock = new Object();
 
     private final ConcurrentHashMap<String, StationReading> lastestReading = new ConcurrentHashMap<>();
-
     private final StationService stationService;
 
     public ReadingService(StationService stationService) {
@@ -40,7 +39,7 @@ public class ReadingService {
                 Instant.now()
         );
 
-        readings.add(reading);
+        addToHistory(reading);
 
         lastestReading.compute(
                 reading.stationId(),
@@ -49,7 +48,7 @@ public class ReadingService {
                         return reading;
                     }
 
-                    if (reading.measuredAt().isBefore(current.measuredAt())) {
+                    if (reading.measuredAt().isAfter(current.measuredAt())) {
                         return reading;
                     }
 
@@ -59,8 +58,20 @@ public class ReadingService {
         return reading;
     }
 
+    public void addToHistory(StationReading reading) {
+        synchronized (readingLock) {
+            if (readings.size() >= MAX_READINGS) {
+                readings.removeFirst();
+            }
+
+            readings.addLast(reading);
+        }
+    }
+
     public List<StationReading> getReadings() {
-        return List.copyOf(this.readings);
+        synchronized (readingLock) {
+            return List.copyOf(this.readings);
+        }
     }
 
     public Map<String, StationReading> getLastestReadingsSnapshot() {
