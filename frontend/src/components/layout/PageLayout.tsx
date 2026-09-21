@@ -2,7 +2,7 @@ import type {ReactNode} from "react";
 
 import {
     Box,
-    Container,
+    Container, type ContainerProps,
     Flex,
     Icon,
     Stack,
@@ -16,17 +16,18 @@ interface PageLayoutProps {
     children: ReactNode;
     headerAction?: ReactNode;
     maxW?: string;
+    contentPy?: ContainerProps["py"];
 }
 
 export const PageLayout = (props : PageLayoutProps) => {
-    const {children, headerAction, maxW = "7xl"} = props;
+    const {children, headerAction, maxW = "7xl", contentPy = "8"} = props;
 
     return (
         <Box
             minH="100vh"
             bg="#050d20"
             position="relative"
-            overflow="hidden"
+            overflowX="hidden"
         >
             <Box
                 position="absolute"
@@ -34,7 +35,6 @@ export const PageLayout = (props : PageLayoutProps) => {
                 left="0"
                 right="0"
                 bottom="0"
-                bgImage="url('/transit-map.svg')"
                 bgPos="center top"
                 bgSize="cover"
                 bgRepeat="no-repeat"
@@ -95,7 +95,7 @@ export const PageLayout = (props : PageLayoutProps) => {
 
                 <Container
                     maxW={maxW}
-                    py="8"
+                    py={contentPy}
                 >
                     {children}
                 </Container>

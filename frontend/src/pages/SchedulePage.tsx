@@ -80,6 +80,10 @@ export const SchedulePage = () => {
 
     return (
         <PageLayout
+            contentPy={{
+                base: "2",
+                md: "3",
+            }}
             headerAction={
                 <IconButton
                     asChild
@@ -96,10 +100,6 @@ export const SchedulePage = () => {
                     maxW="3xl"
                     mx="auto"
                     w="full"
-                    pt={{
-                        base: "4",
-                        md: "5",
-                    }}
                     pb="8"
                 >
                     <Box
