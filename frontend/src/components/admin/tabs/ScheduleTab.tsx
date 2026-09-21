@@ -1,9 +1,10 @@
-import {Alert, Box, Button, Card, EmptyState, Flex, IconButton, Table} from "@chakra-ui/react";
+import {Alert, Button, EmptyState, IconButton, Table} from "@chakra-ui/react";
 import type {AdminConfig, ScheduleEntryConfig} from "../../../types/adminConfig.ts";
 import type {ConfigUpdater} from "../AdminDashboard.tsx";
 import {LuCalendarClock, LuPlus, LuTrash2} from "react-icons/lu";
 import {ConfigSelect} from "../ConfigSelect.tsx";
 import {ScheduleTimeInput} from "../ScheduleTimeInput.tsx";
+import {AdminTabLayout} from "../../layout/AdminTabLayout.tsx";
 
 export interface ScheduleTabProps {
     config: AdminConfig;
@@ -68,38 +69,20 @@ export const ScheduleTab = (props: ScheduleTabProps) => {
     };
 
     return (
-        <Card.Root mt="4">
-            <Card.Header>
-                <Flex
-                    justify="space-between"
-                    align="center"
-                >
-                    <Box>
-                        <Card.Title>
-                            Default schedule
-                        </Card.Title>
-
-                        <Card.Description>
-                            Base schedule used before dynamic
-                            policies modify service
-                        </Card.Description>
-                    </Box>
-
-                    <Button
-                        size="sm"
-                        colorPalette="teal"
-                        variant="outline"
-                        disabled={!canAdd}
-                        onClick={addEntry}
-                    >
-                        <LuPlus />
-
-                        Add entry
-                    </Button>
-                </Flex>
-            </Card.Header>
-
-            <Card.Body>
+        <AdminTabLayout
+            title="Schedule"
+            description="Base schedule used before dynamic policies modify service"
+            action={
+                <Button
+                    size="sm"
+                    colorPalette="teal"
+                    variant="outline"
+                    onClick={addEntry}>
+                    <LuPlus />
+                    Add entry
+                </Button>
+            }
+        >
                 {!canAdd ? (
                     <Alert.Root
                         status="info"
@@ -241,7 +224,6 @@ export const ScheduleTab = (props: ScheduleTabProps) => {
                         </Table.Body>
                     </Table.Root>
                 )}
-            </Card.Body>
-        </Card.Root>
+        </AdminTabLayout>
     );
 };

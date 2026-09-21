@@ -16,6 +16,7 @@ import {
 
 import type {AdminConfig} from "../../../types/adminConfig";
 import type {StationReading} from "../../../types/reading";
+import {AdminTabLayout} from "../../layout/AdminTabLayout.tsx";
 
 interface ReadingsTabProps {
     adminToken: string;
@@ -112,6 +113,10 @@ export const ReadingsTab = ( props : ReadingsTabProps) => {
     }
 
     return (
+        <AdminTabLayout
+            title="Readings"
+            description="Latest sensor data received from monitored stations"
+        >
         <Stack
             gap="6"
             mt="6"
@@ -276,5 +281,6 @@ export const ReadingsTab = ( props : ReadingsTabProps) => {
                 </Table.Root>
             </Box>
         </Stack>
+        </AdminTabLayout>
     );
 };

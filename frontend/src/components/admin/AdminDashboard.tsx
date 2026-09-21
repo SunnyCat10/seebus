@@ -4,7 +4,6 @@ import {
     Badge,
     Box,
     Button,
-    Container,
     Heading, Spinner,
     Stack,
     Tabs,
@@ -136,11 +135,6 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
                     <Text color="colorPalette.600">Loading...</Text>
                 </VStack>
             )}
-
-            <Container
-                maxW="7xl"
-                py="8"
-            >
                 <Stack gap="6">
                     <Box
                         display="flex"
@@ -297,7 +291,6 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
                         </Alert.Root>
                     )}
                 </Stack>
-            </Container>
         </>
     );
 };

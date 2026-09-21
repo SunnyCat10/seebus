@@ -15,12 +15,11 @@ import {TransitBackground} from "../background/TransitBackground.tsx";
 interface PageLayoutProps {
     children: ReactNode;
     headerAction?: ReactNode;
-    headerSubtitle?: string;
     maxW?: string;
 }
 
 export const PageLayout = (props : PageLayoutProps) => {
-    const {children, headerAction, headerSubtitle, maxW = "7xl"} = props;
+    const {children, headerAction, maxW = "7xl"} = props;
 
     return (
         <Box
@@ -39,7 +38,7 @@ export const PageLayout = (props : PageLayoutProps) => {
                 bgPos="center top"
                 bgSize="cover"
                 bgRepeat="no-repeat"
-                opacity="0.28"
+                opacity="0.42"
                 pointerEvents="none"
             >
                 <TransitBackground/>
@@ -87,15 +86,6 @@ export const PageLayout = (props : PageLayoutProps) => {
                                 >
                                     SeeBus
                                 </Text>
-
-                                {headerSubtitle && (
-                                    <Text
-                                        color="fg.muted"
-                                        fontSize="xs"
-                                    >
-                                        {headerSubtitle}
-                                    </Text>
-                                )}
                             </Stack>
                         </Flex>
 

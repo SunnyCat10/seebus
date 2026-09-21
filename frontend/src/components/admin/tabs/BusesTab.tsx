@@ -1,8 +1,9 @@
-import {Box, Button, Card, EmptyState, Flex, IconButton, Input, NumberInput, Table} from "@chakra-ui/react";
+import {Button, EmptyState, IconButton, Input, NumberInput, Table} from "@chakra-ui/react";
 import type {AdminConfig} from "../../../types/adminConfig.ts";
 import type {Bus} from "../../../types/bus.ts";
 import type {ConfigUpdater} from "../AdminDashboard.tsx";
 import {LuBusFront, LuPlus, LuTrash2} from "react-icons/lu";
+import {AdminTabLayout} from "../../layout/AdminTabLayout.tsx";
 
 export interface BusesTabProps {
     config: AdminConfig;
@@ -55,36 +56,21 @@ export const BusesTab = (props: BusesTabProps,) => {
     };
 
     return (
-        <Card.Root mt="4">
-            <Card.Header>
-                <Flex
-                    justify="space-between"
-                    align="center"
+        <AdminTabLayout
+            title="Buses"
+            description="Vehicles available to the scheduler"
+            action={
+                <Button
+                    size="sm"
+                    colorPalette="teal"
+                    variant="outline"
+                    onClick={addBus}
                 >
-                    <Box>
-                        <Card.Title>
-                            Buses
-                        </Card.Title>
-
-                        <Card.Description>
-                            Vehicles available to the scheduler
-                        </Card.Description>
-                    </Box>
-
-                    <Button
-                        size="sm"
-                        colorPalette="teal"
-                        variant="outline"
-                        onClick={addBus}
-                    >
-                        <LuPlus />
-
-                        Add bus
-                    </Button>
-                </Flex>
-            </Card.Header>
-
-            <Card.Body>
+                    <LuPlus />
+                    Add bus
+                </Button>
+            }
+        >
                 {config.buses.length === 0 ? (
                     <EmptyState.Root>
                         <EmptyState.Content>
@@ -233,7 +219,6 @@ export const BusesTab = (props: BusesTabProps,) => {
                         </Table.Body>
                     </Table.Root>
                 )}
-            </Card.Body>
-        </Card.Root>
+        </AdminTabLayout>
     );
 };

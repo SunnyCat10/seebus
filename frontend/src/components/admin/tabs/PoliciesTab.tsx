@@ -1,20 +1,11 @@
 import {useEffect, useState} from "react";
 
-import {
-    Badge,
-    Box,
-    createListCollection,
-    Heading,
-    Portal,
-    Select,
-    Spinner,
-    Stack,
-    Text,
-} from "@chakra-ui/react";
+import {Box, createListCollection, Portal, Select, Spinner, Text} from "@chakra-ui/react";
 
 import {getPolicy, updatePolicy} from "../../../api/seebusApi";
 
 import type {PolicyInfo} from "../../../types/policy";
+import { AdminTabLayout } from "../../layout/AdminTabLayout";
 
 interface PoliciesTabProps {
     adminToken: string;
@@ -128,27 +119,10 @@ export const PoliciesTab = (props : PoliciesTabProps) => {
         });
 
     return (
-        <Box
-            mt="6"
-            borderWidth="1px"
-            borderRadius="lg"
-            p="6"
+        <AdminTabLayout
+            title="Scheduling policy"
+            description="Select the scheduling strategy used by the SeeBus scheduler"
         >
-            <Stack gap="5">
-                <Box>
-                    <Heading size="md">
-                        Scheduling policy
-                    </Heading>
-
-                    <Text
-                        color="fg.muted"
-                        mt="1"
-                    >
-                        Select the scheduling strategy used
-                        by the SeeBus scheduler
-                    </Text>
-                </Box>
-
                 <Box>
                     <Text
                         fontSize="sm"
@@ -157,14 +131,6 @@ export const PoliciesTab = (props : PoliciesTabProps) => {
                     >
                         Active policy
                     </Text>
-
-                    <Badge
-                        colorPalette="teal"
-                        variant="subtle"
-                        mb="4"
-                    >
-                        {policyInfo.activePolicy}
-                    </Badge>
 
                     <Select.Root
                         collection={policyCollection}
@@ -229,17 +195,24 @@ export const PoliciesTab = (props : PoliciesTabProps) => {
                             Updating policy...
                         </Text>
                     )}
-                </Box>
 
-                {error && (
+                    {error && (
+                        <Text
+                            color="red.400"
+                            fontSize="sm"
+                        >
+                            {error}
+                        </Text>
+                    )}
+
                     <Text
-                        color="red.400"
+                        mt="2"
                         fontSize="sm"
+                        color="fg.muted"
                     >
-                        {error}
+                        Changes take effect on the next scheduler cycle
                     </Text>
-                )}
-            </Stack>
-        </Box>
+                </Box>
+        </AdminTabLayout>
     );
 };
