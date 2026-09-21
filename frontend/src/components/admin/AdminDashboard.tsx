@@ -4,7 +4,6 @@ import {
     Badge,
     Box,
     Button,
-    Container,
     Heading, Spinner,
     Stack,
     Tabs,
@@ -12,19 +11,21 @@ import {
 } from "@chakra-ui/react";
 
 import {
+    LuActivity,
     LuBusFront,
     LuCalendarClock,
     LuMapPin,
-    LuSave,
+    LuSave, LuSettings2,
 } from "react-icons/lu";
 
 import {getAdminConfig, updateAdminConfig} from "../../api/seebusApi";
 
 import type {AdminConfig} from "../../types/adminConfig";
-import {AdminHeader} from "./AdminHeader.tsx";
 import {StationsTab} from "./tabs/StationsTab.tsx";
 import {BusesTab} from "./tabs/BusesTab.tsx";
 import {ScheduleTab} from "./tabs/ScheduleTab.tsx";
+import {PoliciesTab} from "./tabs/PoliciesTab";
+import {ReadingsTab} from "./tabs/ReadingsTab";
 
 interface AdminDashboardProps {
     adminToken: string;
@@ -48,20 +49,13 @@ const emptyConfig: AdminConfig = {
 export const AdminDashboard = (props: AdminDashboardProps) => {
     const {adminToken,} = props;
 
-    const [config, setConfig] =
-        useState<AdminConfig>(emptyConfig);
-
-    const [loading, setLoading] =
-        useState(true);
-
-    const [dirty, setDirty] =
-        useState(false);
-
-    const [saving, setSaving] =
-        useState(false);
-
-    const [status, setStatus] =
-        useState<SaveStatus>(null);
+    const [config, setConfig] = useState<AdminConfig>(emptyConfig);
+    const [loading, setLoading] = useState(true);
+    const [dirty, setDirty] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [status, setStatus] = useState<SaveStatus>(null);
+    const [policyCount, setPolicyCount] = useState(0);
+    const [readingCount, setReadingCount] = useState(0);
 
     useEffect(() => {
         let cancelled = false;
@@ -134,35 +128,32 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
     };
 
     return (
-        <Box
-            minH="100vh"
-            bg="#050d20"
-        >
-            <AdminHeader/>
-
+        <>
             { loading && (
                 <VStack colorPalette="teal">
                     <Spinner color="colorPalette.600" size="xl"/>
                     <Text color="colorPalette.600">Loading...</Text>
                 </VStack>
             )}
-
-            <Container
-                maxW="7xl"
-                py="8"
-            >
                 <Stack gap="6">
-                    <Box>
-                        <Heading size="2xl">
-                            System configuration
-                        </Heading>
+                    <Box
+                        display="flex"
+                        justifyContent="space-between"
+                        alignItems="flex-start"
+                        gap="4"
+                    >
+                        <Box>
+                            <Heading size="2xl">
+                                System configuration
+                            </Heading>
 
-                        <Text
-                            color="fg.muted"
-                            mt="1"
-                        >
-                            Manage stations, buses, and the default SeeBus schedule
-                        </Text>
+                            <Text
+                                color="fg.muted"
+                                mt="1"
+                            >
+                                Manage stations, buses, policies, and the default SeeBus schedule
+                            </Text>
+                        </Box>
 
                         <Button
                             colorPalette="teal"
@@ -220,6 +211,26 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
                                     {config.defaultSchedule.length}
                                 </Badge>
                             </Tabs.Trigger>
+
+                            <Tabs.Trigger value="policies">
+                                <LuSettings2 />
+
+                                Policies
+
+                                <Badge ml="2" variant="subtle">
+                                    {policyCount}
+                                </Badge>
+                            </Tabs.Trigger>
+
+                            <Tabs.Trigger value="readings">
+                                <LuActivity />
+
+                                Readings
+
+                                <Badge ml="2" variant="subtle">
+                                    {readingCount}
+                                </Badge>
+                            </Tabs.Trigger>
                         </Tabs.List>
 
                         <Tabs.Content value="stations">
@@ -240,6 +251,21 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
                             <ScheduleTab
                                 config={config}
                                 updateConfig={updateConfig}
+                            />
+                        </Tabs.Content>
+
+                        <Tabs.Content value="policies">
+                            <PoliciesTab
+                                adminToken={adminToken}
+                                onCountChange={setPolicyCount}
+                            />
+                        </Tabs.Content>
+
+                        <Tabs.Content value="readings">
+                            <ReadingsTab
+                                adminToken={adminToken}
+                                config={config}
+                                onCountChange={setReadingCount}
                             />
                         </Tabs.Content>
                     </Tabs.Root>
@@ -265,7 +291,6 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
                         </Alert.Root>
                     )}
                 </Stack>
-            </Container>
-        </Box>
+        </>
     );
 };

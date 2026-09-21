@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
     Box,
     Button,
-    Container,
+    Container, Flex,
     Heading,
     Input,
     Text,
@@ -16,14 +16,14 @@ interface AdminGateProps {
     onUnlock: (token: string) => void;
 }
 
-export function AdminGate({
-                              onUnlock,
-                          }: AdminGateProps) {
+export const AdminGate = (props : AdminGateProps) => {
+    const {onUnlock} = props;
+
     const [token, setToken] = useState("");
     const [error, setError] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    async function unlock() {
+    const unlock = async () => {
         setLoading(true);
         setError(false);
 
@@ -35,10 +35,7 @@ export function AdminGate({
                 return;
             }
 
-            sessionStorage.setItem(
-                "seebus-admin-token",
-                token,
-            );
+            sessionStorage.setItem("seebus-admin-token", token);
 
             onUnlock(token);
         } finally {
@@ -47,71 +44,82 @@ export function AdminGate({
     }
 
     return (
-        <Box minH="100vh" bg="#050d20">
-            <Container maxW="md" py="24">
-                <VStack
-                    gap="5"
-                    p="8"
-                    borderWidth="1px"
-                    borderColor="whiteAlpha.200"
-                    borderRadius="2xl"
-                    bg="rgba(12, 21, 42, 0.92)"
-                    align="stretch"
-                >
-                    <Box
-                        color="teal.300"
-                        fontSize="2xl"
+        <Container
+            maxW="md"
+            py="16"
+        >
+            <VStack
+                gap="5"
+                p="8"
+                borderWidth="1px"
+                borderColor="border"
+                borderRadius="2xl"
+                bg="bg.panel"
+                align="stretch"
+            >
+                <Box>
+                    <Flex
+                        align="center"
+                        gap="3"
                     >
-                        <LuLockKeyhole />
-                    </Box>
+                        <Flex
+                            boxSize="40px"
+                            align="center"
+                            justify="center"
+                            borderWidth="1px"
+                            borderColor="teal.500"
+                            borderRadius="lg"
+                            color="teal.300"
+                            flexShrink="0"
+                        >
+                            <LuLockKeyhole />
+                        </Flex>
 
-                    <Box>
                         <Heading size="lg">
                             SeeBus Admin
                         </Heading>
+                    </Flex>
 
-                        <Text
-                            mt="2"
-                            color="gray.400"
-                        >
-                            Enter the administrator token
-                            to continue
-                        </Text>
-                    </Box>
-
-                    <Input
-                        type="password"
-                        value={token}
-                        placeholder="Admin token"
-                        onChange={(event) =>
-                            setToken(event.target.value)
-                        }
-                        onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                                void unlock();
-                            }
-                        }}
-                    />
-
-                    {error && (
-                        <Text
-                            color="red.300"
-                            fontSize="sm"
-                        >
-                            Invalid administrator token
-                        </Text>
-                    )}
-
-                    <Button
-                        onClick={() => void unlock()}
-                        loading={loading}
-                        disabled={!token}
-                        colorPalette="teal"
+                    <Text
+                        mt="4"
+                        color="fg.muted"
                     >
-                        Unlock
-                    </Button>
-                </VStack>
-            </Container>
-        </Box>
+                        Enter the administrator token to continue
+                    </Text>
+                </Box>
+
+                <Input
+                    type="password"
+                    value={token}
+                    placeholder="Admin token"
+                    onChange={(event) =>
+                        setToken(event.target.value)
+                    }
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                            void unlock();
+                        }
+                    }}
+                />
+
+                {error && (
+                    <Text
+                        color="red.300"
+                        fontSize="sm"
+                    >
+                        Invalid administrator token
+                    </Text>
+                )}
+
+                <Button
+                    onClick={() => void unlock()}
+                    loading={loading}
+                    disabled={!token}
+                    colorPalette="teal"
+                >
+                    Unlock
+                </Button>
+            </VStack>
+        </Container>
     );
 }

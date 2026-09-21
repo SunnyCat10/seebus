@@ -1,8 +1,9 @@
-import {Box, Button, Card, EmptyState, Flex, IconButton, Input, Table} from "@chakra-ui/react";
+import {Button, EmptyState, IconButton, Input, Table} from "@chakra-ui/react";
 import type {AdminConfig} from "../../../types/adminConfig.ts";
 import type {ConfigUpdater} from "../AdminDashboard.tsx"
 import type {Station} from "../../../types/station.ts";
 import {LuMapPin, LuPlus, LuTrash2} from "react-icons/lu";
+import {AdminTabLayout} from "../../layout/AdminTabLayout.tsx";
 
 export interface StationsTabProps {
     config: AdminConfig;
@@ -54,37 +55,20 @@ export const StationsTab = (props: StationsTabProps) => {
     };
 
     return (
-        <Card.Root mt="4">
-            <Card.Header>
-                <Flex
-                    justify="space-between"
-                    align="center"
-                >
-                    <Box>
-                        <Card.Title>
-                            Stations
-                        </Card.Title>
-
-                        <Card.Description>
-                            Stations monitored by the SeeBus
-                            system.
-                        </Card.Description>
-                    </Box>
-
-                    <Button
-                        size="sm"
+        <AdminTabLayout
+            title="Stations"
+            description="Stations monitored by the SeeBus system"
+            action={
+                <Button
+                    size="sm"
                         colorPalette="teal"
                         variant="outline"
-                        onClick={addStation}
-                    >
-                        <LuPlus />
-
-                        Add station
-                    </Button>
-                </Flex>
-            </Card.Header>
-
-            <Card.Body>
+                        onClick={addStation}>
+                <LuPlus />
+                Add station
+                </Button>
+            }
+        >
                 {config.stations.length === 0 ? (
                     <EmptyState.Root>
                         <EmptyState.Content>
@@ -210,7 +194,6 @@ export const StationsTab = (props: StationsTabProps) => {
                         </Table.Body>
                     </Table.Root>
                 )}
-            </Card.Body>
-        </Card.Root>
+        </AdminTabLayout>
     );
 };

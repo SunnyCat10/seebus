@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 
 import { getCurrentSchedule } from "../api/seebusApi";
 import type { CurrentSchedule } from "../types/schedule";
-import {Box, Container, Heading, Stack, Text} from "@chakra-ui/react";
+import {Box, Container, Heading, IconButton, Stack, Text} from "@chakra-ui/react";
 import {ScheduleCard} from "../components/schedule/ScheduleCard.tsx";
-import {TransitBackground} from "../components/background/TransitBackground.tsx";
-import {AppHeader} from "../components/layout/AppHeader.tsx";
+import {PageLayout} from "../components/layout/PageLayout.tsx";
+import {LuSettings} from "react-icons/lu";
+import {Link as RouterLink} from "react-router-dom";
 
 export function SchedulePage() {
     const [schedule, setSchedule] = useState<CurrentSchedule | null>(null);
@@ -40,15 +41,19 @@ export function SchedulePage() {
     }, []);
 
     return (
-        <Box
-            minH="100vh"
-            bg="#080e20"
-            position="relative"
+        <PageLayout
+            headerAction={
+                <IconButton
+                    asChild
+                    aria-label="Admin settings"
+                    variant="ghost"
+                >
+                    <RouterLink to="/admin">
+                        <LuSettings />
+                    </RouterLink>
+                </IconButton>
+            }
         >
-            <TransitBackground />
-
-            <AppHeader/>
-
             <Container
                 position="relative"
                 zIndex="1"
@@ -107,6 +112,6 @@ export function SchedulePage() {
                     )}
                 </Box>
             </Container>
-        </Box>
+        </PageLayout>
     );
 }
