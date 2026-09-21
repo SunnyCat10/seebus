@@ -104,7 +104,7 @@ const Eta = (props : EtaProps) => {
                     }}
                     fontWeight="bold"
                     lineHeight="0.9"
-                    color="whiteAlpha.650"
+                    color="whiteAlpha.700"
                 >
                     {hours}
                 </Text>
@@ -113,7 +113,7 @@ const Eta = (props : EtaProps) => {
                     mt="1"
                     fontSize="xs"
                     fontWeight="medium"
-                    color="whiteAlpha.650"
+                    color="whiteAlpha.700"
                     textTransform="lowercase"
                 >
                     hours
@@ -132,7 +132,7 @@ const Eta = (props : EtaProps) => {
                     }}
                     fontWeight="bold"
                     lineHeight="0.9"
-                    color="whiteAlpha.650"
+                    color="whiteAlpha.600"
                 >
                     {remainingMinutes}
                 </Text>
@@ -141,7 +141,7 @@ const Eta = (props : EtaProps) => {
                     mt="1"
                     fontSize="xs"
                     fontWeight="medium"
-                    color="whiteAlpha.650"
+                    color="whiteAlpha.600"
                     textTransform="lowercase"
                 >
                     minutes

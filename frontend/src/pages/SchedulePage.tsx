@@ -96,22 +96,24 @@ export const SchedulePage = () => {
                     maxW="3xl"
                     mx="auto"
                     w="full"
-                    py={{
-                        base: "6",
-                        md: "8",
+                    pt={{
+                        base: "4",
+                        md: "5",
                     }}
+                    pb="8"
                 >
                     <Box
                         mb="4"
-                        bg="rgba(18, 28, 52, 0.72)"
+                        bg="rgba(20, 32, 58, 0.92)"
                         borderWidth="1px"
-                        borderColor="whiteAlpha.150"
+                        borderColor="whiteAlpha.300"
                         borderRadius="xl"
                         px={{
                             base: "5",
                             md: "7",
                         }}
                         py="4"
+                        boxShadow="0 6px 18px rgba(0, 0, 0, 0.16)"
                         backdropFilter="blur(8px)"
                     >
                         <Flex
@@ -125,7 +127,7 @@ export const SchedulePage = () => {
                                     md: "xl",
                                 }}
                                 fontWeight="semibold"
-                                color="whiteAlpha.900"
+                                color="whiteAlpha.950"
                             >
                                 Upcoming buses
                             </Text>
@@ -142,7 +144,7 @@ export const SchedulePage = () => {
                                     }}
                                     fontWeight="semibold"
                                     lineHeight="0.95"
-                                    color="whiteAlpha.700"
+                                    color="whiteAlpha.800"
                                 >
                                     {currentTime}
                                 </Text>
@@ -151,7 +153,7 @@ export const SchedulePage = () => {
                                     mt="1"
                                     fontSize="sm"
                                     fontWeight="medium"
-                                    color="whiteAlpha.500"
+                                    color="whiteAlpha.600"
                                 >
                                     {weekday}
                                 </Text>
