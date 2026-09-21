@@ -59,6 +59,14 @@ catch {
         Write-Host "HTTP status: $($_.Exception.Response.StatusCode)"
     }
 
+    if ($_.ErrorDetails.Message) {
+        Write-Host ""
+        Write-Host "Response body:"
+        Write-Host $_.ErrorDetails.Message
+    }
+
+    Write-Host ""
     Write-Host $_.Exception.Message
+
     exit 1
 }
