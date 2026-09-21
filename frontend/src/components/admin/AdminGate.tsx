@@ -2,7 +2,7 @@ import { useState } from "react";
 import {
     Box,
     Button,
-    Container,
+    Container, Flex,
     Heading,
     Input,
     Text,
@@ -57,24 +57,34 @@ export const AdminGate = (props : AdminGateProps) => {
                 bg="bg.panel"
                 align="stretch"
             >
-                <Box
-                    color="teal.300"
-                    fontSize="2xl"
-                >
-                    <LuLockKeyhole />
-                </Box>
-
                 <Box>
-                    <Heading size="lg">
-                        SeeBus Admin
-                    </Heading>
+                    <Flex
+                        align="center"
+                        gap="3"
+                    >
+                        <Flex
+                            boxSize="40px"
+                            align="center"
+                            justify="center"
+                            borderWidth="1px"
+                            borderColor="teal.500"
+                            borderRadius="lg"
+                            color="teal.300"
+                            flexShrink="0"
+                        >
+                            <LuLockKeyhole />
+                        </Flex>
+
+                        <Heading size="lg">
+                            SeeBus Admin
+                        </Heading>
+                    </Flex>
 
                     <Text
-                        mt="2"
+                        mt="4"
                         color="fg.muted"
                     >
-                        Enter the administrator token
-                        to continue
+                        Enter the administrator token to continue
                     </Text>
                 </Box>
 

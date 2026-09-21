@@ -57,7 +57,7 @@ export const StationsTab = (props: StationsTabProps) => {
     return (
         <AdminTabLayout
             title="Stations"
-            description="Stations monitored by the SeeBus system."
+            description="Stations monitored by the SeeBus system"
             action={
                 <Button
                     size="sm"
