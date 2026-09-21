@@ -49,6 +49,8 @@ interface EtaProps {
 
 const Eta = ({minutes}: EtaProps) => {
     const hasHours = minutes >= 60;
+    const arriving = minutes <= 1;
+
     const hours = Math.floor(minutes / 60);
 
     const remainingMinutes =
@@ -56,18 +58,18 @@ const Eta = ({minutes}: EtaProps) => {
             ? minutes % 60
             : minutes;
 
-    const arriving = minutes <= 1;
-
-    const minuteNumberColor =
+    // Same size + weight everywhere.
+    // Only the color/opacity communicates priority.
+    const numberColor =
         arriving
             ? "red.200"
             : hasHours
                 ? "whiteAlpha.650"
                 : "white";
 
-    const minuteLabelColor =
+    const labelColor =
         arriving
-            ? "red.200"
+            ? "red.300"
             : hasHours
                 ? "whiteAlpha.450"
                 : "whiteAlpha.700";
@@ -81,6 +83,8 @@ const Eta = ({minutes}: EtaProps) => {
             align="flex-end"
             justify="flex-end"
         >
+            {/* Hours slot always occupies space so the
+                minutes column never shifts horizontally. */}
             <Stack
                 gap="0"
                 align="center"
@@ -99,16 +103,16 @@ const Eta = ({minutes}: EtaProps) => {
                     }}
                     fontWeight="bold"
                     lineHeight="0.9"
-                    color="whiteAlpha.650"
+                    color={numberColor}
                 >
                     {hours}
                 </Text>
 
                 <Text
                     mt="1"
-                    fontSize="xs"
+                    fontSize="sm"
                     fontWeight="bold"
-                    color="whiteAlpha.450"
+                    color={labelColor}
                 >
                     hours
                 </Text>
@@ -126,25 +130,16 @@ const Eta = ({minutes}: EtaProps) => {
                     }}
                     fontWeight="bold"
                     lineHeight="0.9"
-                    color={minuteNumberColor}
+                    color={numberColor}
                 >
                     {remainingMinutes}
                 </Text>
 
                 <Text
                     mt="1"
-                    fontSize={
-                        hasHours
-                            ? "xs"
-                            : "sm"
-                    }
+                    fontSize="sm"
                     fontWeight="bold"
-                    color={minuteLabelColor}
-                    opacity={
-                        arriving
-                            ? 0.72
-                            : 1
-                    }
+                    color={labelColor}
                 >
                     minutes
                 </Text>
@@ -152,7 +147,6 @@ const Eta = ({minutes}: EtaProps) => {
         </HStack>
     );
 };
-
 export const ScheduleCard = (
     props: ScheduleCardProps,
 ) => {
