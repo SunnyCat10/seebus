@@ -96,6 +96,12 @@ public class SecurityConfig {
                                                 "/api/schedule/default"
                                         ).hasRole("ADMIN")
 
+                                        .requestMatchers(
+                                                HttpMethod.GET,
+                                                "/api/readings",
+                                                "/api/readings/**"
+                                        ).hasRole("ADMIN")
+
                                     // Default deny all to not expose something new:
                                         .anyRequest().denyAll()
                 ).exceptionHandling(ex -> ex.authenticationEntryPoint(

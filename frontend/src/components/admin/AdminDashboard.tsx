@@ -22,7 +22,6 @@ import {
 import {getAdminConfig, updateAdminConfig} from "../../api/seebusApi";
 
 import type {AdminConfig} from "../../types/adminConfig";
-import {AdminHeader} from "./AdminHeader.tsx";
 import {StationsTab} from "./tabs/StationsTab.tsx";
 import {BusesTab} from "./tabs/BusesTab.tsx";
 import {ScheduleTab} from "./tabs/ScheduleTab.tsx";
@@ -130,12 +129,7 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
     };
 
     return (
-        <Box
-            minH="100vh"
-            bg="#050d20"
-        >
-            <AdminHeader/>
-
+        <>
             { loading && (
                 <VStack colorPalette="teal">
                     <Spinner color="colorPalette.600" size="xl"/>
@@ -304,6 +298,6 @@ export const AdminDashboard = (props: AdminDashboardProps) => {
                     )}
                 </Stack>
             </Container>
-        </Box>
+        </>
     );
 };
