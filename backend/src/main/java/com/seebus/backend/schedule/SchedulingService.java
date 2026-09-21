@@ -17,7 +17,7 @@ public class SchedulingService {
     private final BusService busService;
     private final ScheduleService scheduleService;
     private final ReadingService readingService;
-    private final SchedulingPolicy schedulingPolicy;
+    private final SchedulingPolicyService policyService;
 
     private final AtomicReference<CurrentSchedule> currentSchedule =  new AtomicReference<>(
             new CurrentSchedule(
@@ -32,13 +32,13 @@ public class SchedulingService {
             BusService busService,
             ScheduleService scheduleService,
             ReadingService readingService,
-            SchedulingPolicy schedulingPolicy
+            SchedulingPolicyService policyService
     ) {
         this.stationService = stationService;
         this.busService = busService;
         this.scheduleService = scheduleService;
         this.readingService = readingService;
-        this.schedulingPolicy = schedulingPolicy;
+        this.policyService = policyService;
     }
 
     public void recalculate() {
@@ -52,7 +52,8 @@ public class SchedulingService {
                 readingService.getLastestReadingsSnapshot()
         );
 
-        CurrentSchedule result = schedulingPolicy.calculateSchedule(input);
+        SchedulingPolicy currentPolicy = policyService.getActivePolicy();
+        CurrentSchedule result = currentPolicy.calculateSchedule(input);
 
         currentSchedule.set(result);
     }
@@ -60,6 +61,4 @@ public class SchedulingService {
     public CurrentSchedule getCurrentSchedule() {
         return currentSchedule.get();
     }
-
-
 }
