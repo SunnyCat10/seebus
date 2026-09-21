@@ -1,6 +1,8 @@
 import {
     Box,
     Flex,
+    HStack,
+    Stack,
     Text,
 } from "@chakra-ui/react";
 
@@ -8,71 +10,222 @@ interface ScheduleCardProps {
     arrivalTime: string;
     station: string;
     bus: string;
-    next?: boolean;
     now: Date;
 }
 
-export function ScheduleCard(props : ScheduleCardProps) {
-    const { arrivalTime, station, bus, next, now } = props;
+const getBusColor = (bus: string): string => {
+    const number = Number(bus);
 
-    const arrival = new Date(arrivalTime);
+    if (Number.isNaN(number)) {
+        return "#334155";
+    }
 
-    const minutesUntil = Math.max(
-        0,
-        Math.ceil(
-            (arrival.getTime() - now.getTime()) / 60_000
-        ),
+    if (number <= 20) {
+        return "#760f22";
+    }
+
+    if (number <= 50) {
+        return "#2563EB";
+    }
+
+    if (number <= 80) {
+        return "#86198F";
+    }
+
+    if (number <= 100) {
+        return "#C2410C";
+    }
+
+    if (number <= 200) {
+        return "#00771b";
+    }
+
+    return "#475569";
+};
+
+interface EtaProps {
+    minutes: number;
+}
+
+const Eta = ({minutes}: EtaProps) => {
+    const hasHours = minutes >= 60;
+    const arriving = minutes <= 1;
+
+    const hours = Math.floor(minutes / 60);
+
+    const remainingMinutes =
+        hasHours
+            ? minutes % 60
+            : minutes;
+
+    const numberColor =
+        arriving
+            ? "red.200"
+            : hasHours
+                ? "whiteAlpha.600"
+                : "whiteAlpha";
+
+    const labelColor =
+        arriving
+            ? "red.300"
+            : hasHours
+                ? "whiteAlpha.400"
+                : "whiteAlpha.700";
+
+    return (
+        <HStack
+            gap={{
+                base: "5",
+                md: "7",
+            }}
+            align="flex-end"
+            justify="flex-end"
+        >
+            <Stack
+                gap="0"
+                align="center"
+                minW="56px"
+                visibility={
+                    hasHours
+                        ? "visible"
+                        : "hidden"
+                }
+                aria-hidden={!hasHours}
+            >
+                <Text
+                    fontSize={{
+                        base: "4xl",
+                        md: "5xl",
+                    }}
+                    fontWeight="bold"
+                    lineHeight="0.9"
+                    color="whiteAlpha.600"
+                >
+                    {hours}
+                </Text>
+
+                <Text
+                    mt="1"
+                    fontSize="sm"
+                    fontWeight="bold"
+                    color="whiteAlpha.400"
+                >
+                    hours
+                </Text>
+            </Stack>
+
+            <Stack
+                gap="0"
+                align="center"
+                minW="56px"
+            >
+                <Text
+                    fontSize={{
+                        base: "4xl",
+                        md: "5xl",
+                    }}
+                    fontWeight="bold"
+                    lineHeight="0.9"
+                    color={numberColor}
+                >
+                    {remainingMinutes}
+                </Text>
+
+                <Text
+                    mt="1"
+                    fontSize="sm"
+                    fontWeight="bold"
+                    color={labelColor}
+                >
+                    minutes
+                </Text>
+            </Stack>
+        </HStack>
     );
+};
 
-    const formattedTime = arrival.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-    });
+export const ScheduleCard = (
+    props: ScheduleCardProps,
+) => {
+    const {
+        arrivalTime,
+        station,
+        bus,
+        now,
+    } = props;
+
+    const arrival =
+        new Date(arrivalTime);
+
+    const minutesUntil =
+        Math.max(
+            0,
+            Math.ceil(
+                (
+                    arrival.getTime() -
+                    now.getTime()
+                ) / 60_000,
+            ),
+        );
+
+    const backgroundColor =
+        getBusColor(bus);
 
     return (
         <Box
-            borderWidth="1px"
-            borderColor={next ? "teal.400" : "whiteAlpha.200"}
-            bg={next ? "rgba(8, 48, 42, 0.88)" : "rgba(18, 28, 52, 0.88)"}
-            backdropFilter="blur(10px)"
-            boxShadow="0 8px 24px rgba(0,0,0,0.22)"
+            bg={backgroundColor}
             borderRadius="xl"
-            px="5"
-            py="4"
+            px={{
+                base: "5",
+                md: "7",
+            }}
+            py={{
+                base: "5",
+                md: "6",
+            }}
+            borderWidth="1px"
+            borderColor="whiteAlpha.300"
+            boxShadow="0 8px 24px rgba(0, 0, 0, 0.22)"
         >
             <Flex
                 justify="space-between"
                 align="center"
+                gap="6"
             >
-                <Box>
-                    <Text fontSize="lg" fontWeight="bold">
-                        {formattedTime}
-                    </Text>
-
-                    <Text color="fg.muted">
-                        {station}
-                    </Text>
-                </Box>
-
-                <Box textAlign="right">
-                    <Text fontWeight="semibold">
+                <Stack
+                    gap="2"
+                    minW="0"
+                >
+                    <Text
+                        fontSize={{
+                            base: "4xl",
+                            md: "5xl",
+                        }}
+                        fontWeight="bold"
+                        lineHeight="0.9"
+                        color="white"
+                    >
                         {bus}
                     </Text>
 
                     <Text
-                        fontSize="sm"
-                        color={
-                            minutesUntil <= 5
-                                ? "orange.300"
-                                : "fg.muted"
-                        }
+                        fontSize={{
+                            base: "lg",
+                            md: "2xl",
+                        }}
+                        fontWeight="semibold"
+                        lineHeight="1"
+                        color="whiteAlpha.950"
+                        truncate
                     >
-                        {minutesUntil === 0
-                            ? "Now"
-                            : `${minutesUntil} min`}
+                        {station}
                     </Text>
-                </Box>
+                </Stack>
+
+                <Eta
+                    minutes={minutesUntil}
+                />
             </Flex>
         </Box>
     );
-}
+};

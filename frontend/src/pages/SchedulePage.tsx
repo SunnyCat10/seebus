@@ -1,47 +1,89 @@
-import { useEffect, useState } from "react";
+import {useEffect, useState} from "react";
 
-import { getCurrentSchedule } from "../api/seebusApi";
-import type { CurrentSchedule } from "../types/schedule";
-import {Box, Container, Heading, IconButton, Stack, Text} from "@chakra-ui/react";
-import {ScheduleCard} from "../components/schedule/ScheduleCard.tsx";
-import {PageLayout} from "../components/layout/PageLayout.tsx";
+import {
+    Box,
+    Flex,
+    IconButton,
+    Stack,
+    Text,
+} from "@chakra-ui/react";
+
 import {LuSettings} from "react-icons/lu";
 import {Link as RouterLink} from "react-router-dom";
+import {getCurrentSchedule} from "../api/seebusApi";
+import type {CurrentSchedule} from "../types/schedule";
+import {ScheduleCard} from "../components/schedule/ScheduleCard";
+import {PageLayout} from "../components/layout/PageLayout";
 
-export function SchedulePage() {
+export const SchedulePage = () => {
     const [schedule, setSchedule] = useState<CurrentSchedule | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [now, setNow] = useState(() => new Date());
 
     useEffect(() => {
-        async function loadSchedule() {
+        const loadSchedule = async () => {
             try {
-                const result = await getCurrentSchedule();
+                const result =
+                    await getCurrentSchedule();
 
                 setSchedule(result);
                 setError(null);
             } catch {
-                setError("Could not load the current schedule");
+                setError(
+                    "Could not load the current schedule",
+                );
             }
         }
 
         void loadSchedule();
 
-        const interval = setInterval(loadSchedule, 60000);
+        const interval =
+            window.setInterval(
+                () => void loadSchedule(),
+                5_000,
+            );
 
-        return () => clearInterval(interval);
+        return () =>
+            window.clearInterval(interval);
     }, []);
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            setNow(new Date());
-        }, 30_000);
+        const interval =
+            window.setInterval(
+                () => {
+                    setNow(new Date());
+                },
+                15_000,
+            );
 
-        return () => clearInterval(interval);
+        return () =>
+            window.clearInterval(interval);
     }, []);
+
+    const currentTime =
+        now.toLocaleTimeString(
+            [],
+            {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+            },
+        );
+
+    const weekday =
+        now.toLocaleDateString(
+            undefined,
+            {
+                weekday: "long",
+            },
+        );
 
     return (
         <PageLayout
+            contentPy={{
+                base: "2",
+                md: "3",
+            }}
             headerAction={
                 <IconButton
                     asChild
@@ -54,37 +96,93 @@ export function SchedulePage() {
                 </IconButton>
             }
         >
-            <Container
-                position="relative"
-                zIndex="1"
-                maxW="5xl"
-                py={{ base: "6", md: "8" }}
-            >
-                <Box maxW="3xl">
-                    <Heading size="xl" mb="1">
-                        Upcoming buses
-                    </Heading>
+                <Box
+                    maxW="3xl"
+                    mx="auto"
+                    w="full"
+                    pb="8"
+                >
+                    <Box
+                        mb="4"
+                        bg="rgba(20, 32, 58, 0.92)"
+                        borderWidth="1px"
+                        borderColor="whiteAlpha.300"
+                        borderRadius="xl"
+                        px={{
+                            base: "5",
+                            md: "7",
+                        }}
+                        py="4"
+                        boxShadow="0 6px 18px rgba(0, 0, 0, 0.16)"
+                        backdropFilter="blur(8px)"
+                    >
+                        <Flex
+                            justify="space-between"
+                            align="center"
+                            gap="6"
+                        >
+                            <Text
+                                fontSize={{
+                                    base: "lg",
+                                    md: "xl",
+                                }}
+                                fontWeight="semibold"
+                                color="whiteAlpha.950"
+                            >
+                                Upcoming buses
+                            </Text>
 
-                    <Text color="gray.400" mb="6">
-                        {now.toLocaleDateString(undefined, { weekday: "long" })}
-                        {" · "}
-                        {now.toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                        })}
-                    </Text>
+                            <Stack
+                                gap="0"
+                                align="center"
+                                minW="96px"
+                            >
+                                <Text
+                                    fontSize={{
+                                        base: "2xl",
+                                        md: "3xl",
+                                    }}
+                                    fontWeight="semibold"
+                                    lineHeight="0.95"
+                                    color="whiteAlpha.800"
+                                >
+                                    {currentTime}
+                                </Text>
+
+                                <Text
+                                    mt="1"
+                                    fontSize="sm"
+                                    fontWeight="medium"
+                                    color="whiteAlpha.600"
+                                >
+                                    {weekday}
+                                </Text>
+                            </Stack>
+                        </Flex>
+                    </Box>
 
                     <Stack gap="3">
-                        {schedule?.entries.map((entry, index) => (
-                            <ScheduleCard
-                                key={`${entry.bus.id}-${entry.station.id}-${entry.arrivalTime}`}
-                                arrivalTime={entry.arrivalTime}
-                                station={entry.station.name}
-                                bus={entry.bus.name}
-                                next={index === 0}
-                                now={now}
-                            />
-                        ))}
+                        {schedule?.entries.map(
+                            (entry) => (
+                                <ScheduleCard
+                                    key={
+                                        `${entry.bus.id}-` +
+                                        `${entry.station.id}-` +
+                                        `${entry.arrivalTime}`
+                                    }
+                                    arrivalTime={
+                                        entry.arrivalTime
+                                    }
+                                    station={
+                                        entry.station.name
+                                    }
+                                    bus={
+                                        entry.bus.name
+                                    }
+                                    now={now}
+                                />
+                            ),
+                        )}
                     </Stack>
 
                     {error && (
@@ -107,11 +205,12 @@ export function SchedulePage() {
                             borderRadius="lg"
                             p="4"
                         >
-                            <Text>Loading...</Text>
+                            <Text>
+                                Loading...
+                            </Text>
                         </Box>
                     )}
                 </Box>
-            </Container>
         </PageLayout>
     );
 }

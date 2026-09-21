@@ -59,7 +59,22 @@ export const getAdminConfig = async (adminToken: string): Promise<AdminConfig> =
         );
     }
 
-    return response.json();
+    const config =
+        await response.json() as AdminConfig;
+
+    return {
+        ...config,
+
+        defaultSchedule:
+            config.defaultSchedule.map(
+                (entry) => ({
+                    ...entry,
+                    time: normalizeScheduleTime(
+                        entry.time,
+                    ),
+                }),
+            ),
+    };
 };
 
 export async function verifyAdminToken(token: string): Promise<boolean> {
@@ -153,3 +168,13 @@ export async function getLatestReadings(adminToken: string): Promise<Record<stri
 
     return response.json();
 }
+
+const normalizeScheduleTime = (value: string): string => {
+    const [hour, minute] = value.split(":");
+
+    if (!hour || !minute) {
+        return value;
+    }
+
+    return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+};
