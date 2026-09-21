@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/readings")
@@ -32,4 +33,8 @@ public class ReadingController {
         return readingService.getReadings();
     }
 
+    @GetMapping("/latest")
+    public Map<String, StationReading> getLatestReadings() {
+        return readingService.getLastestReadingsSnapshot();
+    }
 }
