@@ -2,9 +2,7 @@ import {useEffect, useState} from "react";
 
 import {
     Box,
-    Container,
     Flex,
-    Heading,
     IconButton,
     Stack,
     Text,
@@ -94,42 +92,72 @@ export const SchedulePage = () => {
                 </IconButton>
             }
         >
-            <Container
-                position="relative"
-                zIndex="1"
-                maxW="5xl"
-                py={{
-                    base: "6",
-                    md: "8",
-                }}
-            >
-                <Box maxW="3xl">
-                    <Heading
-                        size="2xl"
+                <Box
+                    maxW="3xl"
+                    mx="auto"
+                    w="full"
+                    py={{
+                        base: "6",
+                        md: "8",
+                    }}
+                >
+                    <Box
+                        mb="4"
+                        bg="rgba(18, 28, 52, 0.72)"
+                        borderWidth="1px"
+                        borderColor="whiteAlpha.150"
+                        borderRadius="xl"
+                        px={{
+                            base: "5",
+                            md: "7",
+                        }}
+                        py="4"
+                        backdropFilter="blur(8px)"
                     >
-                        Upcoming buses
-                    </Heading>
-
-                    <Flex
-                        mt="2"
-                        mb="7"
-                        gap="3"
-                        align="baseline"
-                    >
-                        <Text
-                            fontSize="2xl"
-                            fontWeight="bold"
+                        <Flex
+                            justify="space-between"
+                            align="center"
+                            gap="6"
                         >
-                            {currentTime}
-                        </Text>
+                            <Text
+                                fontSize={{
+                                    base: "lg",
+                                    md: "xl",
+                                }}
+                                fontWeight="semibold"
+                                color="whiteAlpha.900"
+                            >
+                                Upcoming buses
+                            </Text>
 
-                        <Text
-                            color="fg.muted"
-                            fontSize="md"
-                        >
-                            {weekday}
-                        </Text>
-                    </Flex>
+                            <Stack
+                                gap="0"
+                                align="center"
+                                minW="96px"
+                            >
+                                <Text
+                                    fontSize={{
+                                        base: "2xl",
+                                        md: "3xl",
+                                    }}
+                                    fontWeight="semibold"
+                                    lineHeight="0.95"
+                                    color="whiteAlpha.700"
+                                >
+                                    {currentTime}
+                                </Text>
+
+                                <Text
+                                    mt="1"
+                                    fontSize="sm"
+                                    fontWeight="medium"
+                                    color="whiteAlpha.500"
+                                >
+                                    {weekday}
+                                </Text>
+                            </Stack>
+                        </Flex>
+                    </Box>
 
                     <Stack gap="3">
                         {schedule?.entries.map(
@@ -181,7 +209,6 @@ export const SchedulePage = () => {
                         </Box>
                     )}
                 </Box>
-            </Container>
         </PageLayout>
     );
 }

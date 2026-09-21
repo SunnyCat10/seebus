@@ -55,7 +55,7 @@ const Eta = (props : EtaProps) => {
             <Stack
                 gap="0"
                 align="center"
-                minW="90px"
+                minW="96px"
             >
                 <Text
                     fontSize={{
@@ -73,7 +73,7 @@ const Eta = (props : EtaProps) => {
                     mt="1"
                     fontSize="sm"
                     fontWeight="medium"
-                    color="whiteAlpha.800"
+                    color="whiteAlpha.850"
                 >
                     minutes
                 </Text>
@@ -87,40 +87,15 @@ const Eta = (props : EtaProps) => {
     return (
         <HStack
             gap={{
-                base: "4",
-                md: "6",
+                base: "5",
+                md: "7",
             }}
             align="flex-end"
         >
             <Stack
                 gap="0"
                 align="center"
-            >
-                <Text
-                    fontSize={{
-                        base: "3xl",
-                        md: "4xl",
-                    }}
-                    fontWeight="semibold"
-                    lineHeight="0.9"
-                    color="whiteAlpha.700"
-                >
-                    {hours}
-                </Text>
-
-                <Text
-                    mt="1"
-                    fontSize="xs"
-                    fontWeight="medium"
-                    color="whiteAlpha.600"
-                >
-                    hours
-                </Text>
-            </Stack>
-
-            <Stack
-                gap="0"
-                align="center"
+                minW="56px"
             >
                 <Text
                     fontSize={{
@@ -129,7 +104,35 @@ const Eta = (props : EtaProps) => {
                     }}
                     fontWeight="bold"
                     lineHeight="0.9"
-                    color="white"
+                    color="whiteAlpha.650"
+                >
+                    {hours}
+                </Text>
+
+                <Text
+                    mt="1"
+                    fontSize="xs"
+                    fontWeight="medium"
+                    color="whiteAlpha.650"
+                    textTransform="lowercase"
+                >
+                    hours
+                </Text>
+            </Stack>
+
+            <Stack
+                gap="0"
+                align="center"
+                minW="56px"
+            >
+                <Text
+                    fontSize={{
+                        base: "4xl",
+                        md: "5xl",
+                    }}
+                    fontWeight="bold"
+                    lineHeight="0.9"
+                    color="whiteAlpha.650"
                 >
                     {remainingMinutes}
                 </Text>
@@ -138,7 +141,8 @@ const Eta = (props : EtaProps) => {
                     mt="1"
                     fontSize="xs"
                     fontWeight="medium"
-                    color="whiteAlpha.800"
+                    color="whiteAlpha.650"
+                    textTransform="lowercase"
                 >
                     minutes
                 </Text>
@@ -151,19 +155,8 @@ export const ScheduleCard =(props: ScheduleCardProps)=> {
     const {arrivalTime, station, bus, now,} = props;
 
     const arrival = new Date(arrivalTime);
-
-    const minutesUntil = Math.max(
-        0,
-        Math.ceil(
-            (
-                arrival.getTime() -
-                now.getTime()
-            ) / 60_000,
-        ),
-    );
-
-    const backgroundColor =
-        getBusColor(bus);
+    const minutesUntil = Math.max(0, Math.ceil((arrival.getTime() - now.getTime()) / 60_000));
+    const backgroundColor = getBusColor(bus);
 
     return (
         <Box
@@ -180,10 +173,6 @@ export const ScheduleCard =(props: ScheduleCardProps)=> {
             borderWidth="1px"
             borderColor="whiteAlpha.300"
             boxShadow="0 8px 24px rgba(0, 0, 0, 0.22)"
-            transition="transform 0.15s ease"
-            _hover={{
-                transform: "translateY(-1px)",
-            }}
         >
             <Flex
                 justify="space-between"
@@ -209,10 +198,11 @@ export const ScheduleCard =(props: ScheduleCardProps)=> {
                     <Text
                         fontSize={{
                             base: "lg",
-                            md: "xl",
+                            md: "2xl",
                         }}
-                        fontWeight="medium"
-                        color="whiteAlpha.900"
+                        fontWeight="semibold"
+                        lineHeight="1"
+                        color="whiteAlpha.950"
                         truncate
                     >
                         {station}
