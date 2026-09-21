@@ -36,7 +36,7 @@ export async function updateAdminConfig(
     );
 
     if (!response.ok) {
-        const text = await response.text();But 
+        const text = await response.text();
 
         throw new Error(
             text || `Request failed with status ${response.status}`,
