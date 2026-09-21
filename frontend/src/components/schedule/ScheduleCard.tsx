@@ -41,42 +41,36 @@ const getBusColor = (bus: string): string => {
     }
 
     return "#475569";
-}
+};
 
 interface EtaProps {
     minutes: number;
 }
 
-interface EtaProps {
-    minutes: number;
-}
-
-const Eta = (props : EtaProps) => {
-    const {minutes} = props;
-
+const Eta = ({minutes}: EtaProps) => {
     const hasHours = minutes >= 60;
     const hours = Math.floor(minutes / 60);
-    const remainingMinutes = hasHours ? minutes % 60 : minutes;
+
+    const remainingMinutes =
+        hasHours
+            ? minutes % 60
+            : minutes;
+
     const arriving = minutes <= 1;
 
-    const numberColor =
+    const minuteNumberColor =
         arriving
             ? "red.200"
             : hasHours
                 ? "whiteAlpha.650"
                 : "white";
 
-    const labelColor =
+    const minuteLabelColor =
         arriving
             ? "red.200"
             : hasHours
-                ? "whiteAlpha.600"
-                : "whiteAlpha.850";
-
-    const numberWeight =
-        hasHours
-            ? "medium"
-            : "bold";
+                ? "whiteAlpha.450"
+                : "whiteAlpha.700";
 
     return (
         <HStack
@@ -103,7 +97,7 @@ const Eta = (props : EtaProps) => {
                         base: "4xl",
                         md: "5xl",
                     }}
-                    fontWeight="medium"
+                    fontWeight="bold"
                     lineHeight="0.9"
                     color="whiteAlpha.650"
                 >
@@ -113,8 +107,8 @@ const Eta = (props : EtaProps) => {
                 <Text
                     mt="1"
                     fontSize="xs"
-                    fontWeight="medium"
-                    color="whiteAlpha.600"
+                    fontWeight="bold"
+                    color="whiteAlpha.450"
                 >
                     hours
                 </Text>
@@ -130,9 +124,9 @@ const Eta = (props : EtaProps) => {
                         base: "4xl",
                         md: "5xl",
                     }}
-                    fontWeight={numberWeight}
+                    fontWeight="bold"
                     lineHeight="0.9"
-                    color={numberColor}
+                    color={minuteNumberColor}
                 >
                     {remainingMinutes}
                 </Text>
@@ -144,8 +138,13 @@ const Eta = (props : EtaProps) => {
                             ? "xs"
                             : "sm"
                     }
-                    fontWeight="medium"
-                    color={labelColor}
+                    fontWeight="bold"
+                    color={minuteLabelColor}
+                    opacity={
+                        arriving
+                            ? 0.72
+                            : 1
+                    }
                 >
                     minutes
                 </Text>
@@ -154,12 +153,32 @@ const Eta = (props : EtaProps) => {
     );
 };
 
-export const ScheduleCard =(props: ScheduleCardProps)=> {
-    const {arrivalTime, station, bus, now,} = props;
+export const ScheduleCard = (
+    props: ScheduleCardProps,
+) => {
+    const {
+        arrivalTime,
+        station,
+        bus,
+        now,
+    } = props;
 
-    const arrival = new Date(arrivalTime);
-    const minutesUntil = Math.max(0, Math.ceil((arrival.getTime() - now.getTime()) / 60_000));
-    const backgroundColor = getBusColor(bus);
+    const arrival =
+        new Date(arrivalTime);
+
+    const minutesUntil =
+        Math.max(
+            0,
+            Math.ceil(
+                (
+                    arrival.getTime() -
+                    now.getTime()
+                ) / 60_000,
+            ),
+        );
+
+    const backgroundColor =
+        getBusColor(bus);
 
     return (
         <Box
@@ -212,8 +231,10 @@ export const ScheduleCard =(props: ScheduleCardProps)=> {
                     </Text>
                 </Stack>
 
-                <Eta minutes={minutesUntil} />
+                <Eta
+                    minutes={minutesUntil}
+                />
             </Flex>
         </Box>
     );
-}
+};
