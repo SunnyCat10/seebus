@@ -1,12 +1,23 @@
-$repoRoot = Resolve-Path "$PSScriptRoot\.."
-$envFile = Join-Path $repoRoot ".env"
+param(
+    [string]$EnvFile,
 
-if (-not (Test-Path $envFile)) {
-    Write-Error ".env not found. Run scripts/setup.ps1 first."
+    [switch]$PreserveExisting
+)
+
+$repoRoot = Resolve-Path "$PSScriptRoot\.."
+
+# Preserve old behavior:
+# no -EnvFile means use the repository .env file.
+if (-not $EnvFile) {
+    $EnvFile = Join-Path $repoRoot ".env"
+}
+
+if (-not (Test-Path $EnvFile)) {
+    Write-Error "Environment file not found: $EnvFile"
     exit 1
 }
 
-Get-Content $envFile | ForEach-Object {
+Get-Content $EnvFile | ForEach-Object {
     $line = $_.Trim()
 
     # Ignore blank lines and comments
@@ -17,12 +28,17 @@ Get-Content $envFile | ForEach-Object {
     $parts = $line -split "=", 2
 
     if ($parts.Count -ne 2) {
-        Write-Warning "Ignoring invalid .env line: $line"
+        Write-Warning "Ignoring invalid environment line: $line"
         return
     }
 
     $name = $parts[0].Trim()
     $value = $parts[1].Trim()
+
+    if ($name -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+        Write-Warning "Ignoring invalid environment variable name: $name"
+        return
+    }
 
     # Allow optional quoted values
     if (
@@ -32,9 +48,13 @@ Get-Content $envFile | ForEach-Object {
         $value = $value.Substring(1, $value.Length - 2)
     }
 
-    [Environment]::SetEnvironmentVariable(
-        $name,
-        $value,
-        "Process"
-    )
+    # By default, match the old behavior and overwrite the
+    # process environment variable.
+    if (-not $PreserveExisting -or -not (Test-Path "Env:$name")) {
+        [Environment]::SetEnvironmentVariable(
+            $name,
+            $value,
+            "Process"
+        )
+    }
 }
