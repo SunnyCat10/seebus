@@ -67,3 +67,34 @@ def test_training_and_benchmark_days_do_not_overlap():
     benchmark_days = set(result.benchmark_demand["day"].unique())
 
     assert training_days.isdisjoint(benchmark_days)
+
+
+def test_hidden_world_has_weekday_and_daily_variation():
+    result = run_demand_experiment(
+        ["a"], training_days=7, benchmark_days=7, seed=77,
+        event_probability=0.0,
+    )
+
+    demand = result.benchmark_demand
+    assert set(demand["weekday"].unique()) == {
+        "Monday", "Tuesday", "Wednesday", "Thursday",
+        "Friday", "Saturday", "Sunday"
+    }
+    assert demand["daily_factor"].nunique() > 1
+    assert demand["weekday_factor"].nunique() > 1
+
+
+def test_one_off_events_can_be_forced_for_testing():
+    result = run_demand_experiment(
+        ["a", "b"], training_days=2, benchmark_days=2, seed=5,
+        event_probability=1.0,
+    )
+
+    benchmark_events = result.event_summary[
+        result.event_summary["split"] == "benchmark"
+    ]
+
+    # One event per station/day when probability is forced to 1.
+    assert len(benchmark_events) == 4
+    assert (benchmark_events["event_multiplier"] > 1.0).all()
+    assert (result.benchmark_demand["true_lambda"] > 0).all()
