@@ -5,17 +5,18 @@ import numpy as np
 import pandas as pd
 import simpy
 
-from seebus_sim.transit.config import TransitConfig
+from seebus_sim.transit.config import RouteConfig, TransitConfig
 from seebus_sim.transit.metrics import wait_summary
 from seebus_sim.transit.models import BusState, PassengerBatch, StationQueue
 from seebus_sim.transit.policies import (
     BusObservation,
+    DispatchDecision,
     PolicyContext,
+    RouteObservation,
     SchedulingPolicy,
     StationObservation,
     StaticPolicy,
 )
-from seebus_sim.transit.timetable import ScheduledStop, build_loop_timetable
 
 
 PredictionProvider = Callable[[str, float], float | None]
@@ -29,24 +30,25 @@ class TransitDayResult:
     policy_name: str
     daily_metrics: dict
     station_metrics: pd.DataFrame
+    route_metrics: pd.DataFrame
     bus_metrics: pd.DataFrame
     boarding_events: pd.DataFrame
     alighting_events: pd.DataFrame
     stop_events: pd.DataFrame
+    dispatch_events: pd.DataFrame
 
 
-def _destination_probabilities(config: TransitConfig) -> np.ndarray:
-    distances = np.arange(1, len(config.route), dtype=float)
+def _destination_options(
+    config: TransitConfig,
+    station_id: str,
+) -> tuple[list[str], np.ndarray]:
+    """Downstream stations on the same route, followed by the shared hub."""
+    route = config.route_for_station(station_id)
+    origin_index = route.stations.index(station_id)
+    destination_ids = list(route.stations[origin_index + 1 :]) + [config.hub_id]
+    distances = np.arange(1, len(destination_ids) + 1, dtype=float)
     weights = np.exp(-config.destination_decay * (distances - 1.0))
-    return weights / weights.sum()
-
-
-def _destination_ids(config: TransitConfig, station_id: str) -> list[str]:
-    origin_index = config.route.index(station_id)
-    return [
-        config.route[(origin_index + distance) % len(config.route)]
-        for distance in range(1, len(config.route))
-    ]
+    return destination_ids, weights / weights.sum()
 
 
 def _make_station_rngs(
@@ -58,23 +60,8 @@ def _make_station_rngs(
         station_id: np.random.default_rng(
             np.random.SeedSequence([seed, scenario_day, station_index])
         )
-        for station_index, station_id in enumerate(config.route)
+        for station_index, station_id in enumerate(config.station_ids)
     }
-
-
-def _forward_travel_minutes(
-    config: TransitConfig,
-    current_station_id: str | None,
-    target_station_id: str,
-) -> float:
-    """One-way travel time from the bus's current station to a chosen stop."""
-    if current_station_id is None or current_station_id == target_station_id:
-        return 0.0
-
-    current_index = config.route.index(current_station_id)
-    target_index = config.route.index(target_station_id)
-    station_steps = (target_index - current_index) % len(config.route)
-    return station_steps * config.travel_minutes
 
 
 def simulate_day(
@@ -87,16 +74,12 @@ def simulate_day(
     sensor_provider: SensorProvider | None = None,
 ) -> TransitDayResult:
     """
-    Replay one benchmark day through the transit world using `policy`.
+    Replay one benchmark day through the shared-hub route-allocation world.
 
-    The fixed timetable remains the sequence of *service opportunities*. At
-    every opportunity, the policy can keep the planned stop or choose another
-    station/time. The simulator enforces one-way route travel time before the
-    chosen stop can actually be served.
-
-    Policies never receive hidden true lambda or exact station queue lengths.
-    Learned historical demand and live sensor estimates enter only through the
-    optional providers.
+    Policies may only dispatch idle buses from the common hub. Once dispatched,
+    the simulator owns the bus until it visits every station on that route in
+    order and returns to the hub. Policies cannot skip stops, switch routes, or
+    redirect a bus mid-trip.
     """
 
     if day_demand.empty:
@@ -109,41 +92,46 @@ def simulate_day(
     scenario_day = int(scenario_days[0])
     weekday = str(day_demand["weekday"].iloc[0])
     demand_stations = set(day_demand["station_id"].unique())
-    if demand_stations != set(config.route):
-        raise ValueError("transit route must contain exactly the benchmark stations")
+    if demand_stations != set(config.station_ids):
+        raise ValueError("benchmark demand stations must match transit route stations")
 
     env = simpy.Environment()
     duration = config.service_end - config.service_start
-    stations = {station_id: StationQueue(station_id) for station_id in config.route}
+    stations = {
+        station_id: StationQueue(station_id) for station_id in config.station_ids
+    }
     buses = {
-        f"bus-{index + 1}": BusState(f"bus-{index + 1}", config.bus_capacity)
+        f"bus-{index + 1}": BusState(
+            f"bus-{index + 1}", config.bus_capacity, config.hub_id
+        )
         for index in range(config.bus_count)
     }
-    bus_locations: dict[str, str | None] = {bus_id: None for bus_id in buses}
-    last_served: dict[str, float | None] = {station_id: None for station_id in config.route}
 
     station_rngs = _make_station_rngs(config, scenario_day, seed)
-    destination_probabilities = _destination_probabilities(config)
+    last_served: dict[str, float | None] = {
+        station_id: None for station_id in config.station_ids
+    }
+    last_dispatch: dict[str, float | None] = {
+        route.id: None for route in config.routes
+    }
 
     boarding_rows: list[dict] = []
     alighting_rows: list[dict] = []
     stop_rows: list[dict] = []
-
-    timetable = build_loop_timetable(config)
+    dispatch_rows: list[dict] = []
 
     def passenger_process(station_id: str, station_demand: pd.DataFrame):
         station = stations[station_id]
         rng = station_rngs[station_id]
-        destination_ids = _destination_ids(config, station_id)
+        destination_ids, destination_probabilities = _destination_options(
+            config, station_id
+        )
 
         for row in station_demand.sort_values("minute").itertuples(index=False):
             count = int(row.arrivals)
             if count <= 0:
                 continue
 
-            # Benchmark rows represent a minute bucket. Put those passengers at
-            # the bucket midpoint so simultaneous bus/arrival ordering is
-            # explicit and deterministic.
             arrival_time = float(row.minute) + 0.5
             if arrival_time < config.service_start or arrival_time >= config.service_end:
                 continue
@@ -159,39 +147,83 @@ def simulate_day(
                 if destination_count > 0
             ]
             rng.shuffle(batches)
-
             for batch in batches:
                 station.add(batch, env.now)
 
-    def make_policy_context(bus_id: str, planned_stop: ScheduledStop) -> PolicyContext:
-        bus = buses[bus_id]
-        forecast_time = max(env.now, planned_stop.arrival_time)
-        station_observations: list[StationObservation] = []
+    def station_observation(station_id: str) -> StationObservation:
+        route = config.route_for_station(station_id)
+        served_at = last_served[station_id]
+        predicted_lambda = (
+            prediction_provider(station_id, env.now)
+            if prediction_provider is not None
+            else None
+        )
+        sensor_occupancy = (
+            sensor_provider(station_id, env.now, stations[station_id].waiting_count)
+            if sensor_provider is not None
+            else None
+        )
+        return StationObservation(
+            station_id=station_id,
+            route_id=route.id,
+            predicted_lambda=predicted_lambda,
+            sensor_occupancy=sensor_occupancy,
+            last_served_time=served_at,
+            minutes_since_service=(
+                env.now - served_at if served_at is not None else None
+            ),
+        )
 
-        for station_id in config.route:
-            served_at = last_served[station_id]
-            predicted_lambda = (
-                prediction_provider(station_id, forecast_time)
-                if prediction_provider is not None
+    def make_policy_context(bus_id: str) -> PolicyContext:
+        observations = tuple(
+            station_observation(station_id) for station_id in config.station_ids
+        )
+        station_lookup = {obs.station_id: obs for obs in observations}
+        available_count = sum(not bus.in_service for bus in buses.values())
+
+        route_observations: list[RouteObservation] = []
+        for route in config.routes:
+            route_station_observations = [
+                station_lookup[station_id] for station_id in route.stations
+            ]
+            predicted_values = [
+                obs.predicted_lambda
+                for obs in route_station_observations
+                if obs.predicted_lambda is not None
+            ]
+            predicted_arrivals = (
+                sum(predicted_values) * config.prediction_horizon_minutes
+                if len(predicted_values) == len(route_station_observations)
                 else None
             )
-            sensor_occupancy = (
-                sensor_provider(
-                    station_id,
-                    env.now,
-                    stations[station_id].waiting_count,
-                )
-                if sensor_provider is not None
+            sensor_values = [
+                obs.sensor_occupancy
+                for obs in route_station_observations
+                if obs.sensor_occupancy is not None
+            ]
+            route_sensor = (
+                float(sum(sensor_values))
+                if len(sensor_values) == len(route_station_observations)
                 else None
             )
-            station_observations.append(
-                StationObservation(
-                    station_id=station_id,
-                    predicted_lambda=predicted_lambda,
-                    sensor_occupancy=sensor_occupancy,
-                    last_served_time=served_at,
-                    minutes_since_service=(
-                        env.now - served_at if served_at is not None else None
+            dispatched_at = last_dispatch[route.id]
+            route_observations.append(
+                RouteObservation(
+                    route_id=route.id,
+                    station_ids=route.stations,
+                    trip_minutes=route.trip_minutes,
+                    predicted_arrivals_next_horizon=predicted_arrivals,
+                    sensor_occupancy=route_sensor,
+                    last_dispatch_time=dispatched_at,
+                    minutes_since_dispatch=(
+                        env.now - dispatched_at if dispatched_at is not None else None
+                    ),
+                    buses_in_service=sum(
+                        bus.in_service and bus.current_route_id == route.id
+                        for bus in buses.values()
+                    ),
+                    can_complete_before_service_end=(
+                        env.now + route.trip_minutes <= config.service_end + 1e-9
                     ),
                 )
             )
@@ -202,72 +234,47 @@ def simulate_day(
             weekday=weekday,
             bus=BusObservation(
                 bus_id=bus_id,
-                capacity=bus.capacity,
-                occupancy=bus.occupancy,
-                current_station_id=bus_locations[bus_id],
+                capacity=buses[bus_id].capacity,
+                available_bus_count=available_count,
             ),
-            stations=tuple(station_observations),
-            planned_stop=planned_stop,
-            route=config.route,
-            travel_minutes=config.travel_minutes,
+            stations=observations,
+            routes=tuple(route_observations),
+            service_start=config.service_start,
+            service_end=config.service_end,
+            static_dispatch_interval_minutes=config.static_dispatch_interval_minutes,
+            prediction_horizon_minutes=config.prediction_horizon_minutes,
         )
 
-    def bus_process(bus_id: str, bus_schedule: pd.DataFrame):
+    def log_alighting(bus: BusState, route: RouteConfig, station_id: str) -> int:
+        alighted = bus.alight(station_id, env.now)
+        for batch in alighted:
+            alighting_rows.append(
+                {
+                    "scenario_day": scenario_day,
+                    "weekday": weekday,
+                    "policy_name": policy.name,
+                    "bus_id": bus.bus_id,
+                    "route_id": route.id,
+                    "station_id": station_id,
+                    "destination_id": batch.destination_id,
+                    "arrival_time": batch.arrival_time,
+                    "boarding_time": batch.boarding_time,
+                    "alighting_time": env.now,
+                    "ride_minutes": env.now - batch.boarding_time,
+                    "count": batch.count,
+                }
+            )
+        return sum(batch.count for batch in alighted)
+
+    def route_process(bus_id: str, route: RouteConfig, dispatch_time: float):
         bus = buses[bus_id]
-
-        for stop in bus_schedule.sort_values("arrival_time").itertuples(index=False):
-            planned_stop = ScheduledStop(
-                bus_id=bus_id,
-                station_id=str(stop.station_id),
-                arrival_time=float(stop.arrival_time),
-                sequence=int(stop.sequence),
-            )
-            context = make_policy_context(bus_id, planned_stop)
-            decision = policy.decide_next_stop(context)
-
-            if decision.station_id not in stations:
-                raise ValueError(
-                    f"policy {policy.name!r} chose unknown station "
-                    f"{decision.station_id!r}"
-                )
-
-            required_travel = _forward_travel_minutes(
-                config,
-                bus_locations[bus_id],
-                decision.station_id,
-            )
-            earliest_reachable = env.now + required_travel
-            actual_target_time = max(
-                env.now,
-                float(decision.target_time),
-                earliest_reachable,
-            )
-
-            delay = actual_target_time - env.now
-            if delay > 0:
-                yield env.timeout(delay)
-
-            station = stations[decision.station_id]
+        previous_location = config.hub_id
+        for stop_index, station_id in enumerate(route.stations):
+            yield env.timeout(route.travel_minutes)
+            bus.current_location_id = station_id
+            station = stations[station_id]
             occupancy_before = bus.occupancy
-
-            alighted = bus.alight(decision.station_id, env.now)
-            alighted_count = sum(batch.count for batch in alighted)
-            for batch in alighted:
-                alighting_rows.append(
-                    {
-                        "scenario_day": scenario_day,
-                        "weekday": weekday,
-                        "policy_name": policy.name,
-                        "bus_id": bus_id,
-                        "station_id": decision.station_id,
-                        "destination_id": batch.destination_id,
-                        "arrival_time": batch.arrival_time,
-                        "boarding_time": batch.boarding_time,
-                        "alighting_time": env.now,
-                        "ride_minutes": env.now - batch.boarding_time,
-                        "count": batch.count,
-                    }
-                )
+            alighted_count = log_alighting(bus, route, station_id)
 
             boarded = station.board(bus.free_capacity, env.now)
             for batch in boarded:
@@ -277,7 +284,8 @@ def simulate_day(
                         "weekday": weekday,
                         "policy_name": policy.name,
                         "bus_id": bus_id,
-                        "station_id": decision.station_id,
+                        "route_id": route.id,
+                        "station_id": station_id,
                         "destination_id": batch.destination_id,
                         "passenger_arrival_time": batch.arrival_time,
                         "boarding_time": env.now,
@@ -287,9 +295,7 @@ def simulate_day(
                 )
             bus.board(boarded, env.now)
             boarded_count = sum(batch.count for batch in boarded)
-
-            bus_locations[bus_id] = decision.station_id
-            last_served[decision.station_id] = env.now
+            last_served[station_id] = env.now
 
             stop_rows.append(
                 {
@@ -297,14 +303,13 @@ def simulate_day(
                     "weekday": weekday,
                     "policy_name": policy.name,
                     "bus_id": bus_id,
-                    "planned_station_id": planned_stop.station_id,
-                    "station_id": decision.station_id,
-                    "scheduled_time": planned_stop.arrival_time,
-                    "policy_target_time": float(decision.target_time),
+                    "route_id": route.id,
+                    "stop_index": stop_index,
+                    "previous_location_id": previous_location,
+                    "station_id": station_id,
                     "actual_time": env.now,
-                    "schedule_delay_minutes": env.now - planned_stop.arrival_time,
-                    "required_travel_minutes": required_travel,
-                    "policy_reason": decision.reason,
+                    "dispatch_time": dispatch_time,
+                    "minutes_since_dispatch": env.now - dispatch_time,
                     "occupancy_before": occupancy_before,
                     "alighted": alighted_count,
                     "boarded": boarded_count,
@@ -312,18 +317,99 @@ def simulate_day(
                     "queue_after": station.waiting_count,
                 }
             )
+            previous_location = station_id
 
-    # Passenger processes are registered first. Mid-minute arrival times remove
-    # ambiguity at integer timetable times regardless of process ordering.
-    for station_id in config.route:
+        # Complete the fixed route and return to the shared hub.
+        yield env.timeout(route.travel_minutes)
+        bus.current_location_id = config.hub_id
+        hub_alighted = log_alighting(bus, route, config.hub_id)
+        if bus.occupancy != 0:
+            raise AssertionError(
+                f"bus {bus_id} returned to hub with {bus.occupancy} passengers"
+            )
+        bus.finish_route(env.now)
+
+        stop_rows.append(
+            {
+                "scenario_day": scenario_day,
+                "weekday": weekday,
+                "policy_name": policy.name,
+                "bus_id": bus_id,
+                "route_id": route.id,
+                "stop_index": len(route.stations),
+                "previous_location_id": previous_location,
+                "station_id": config.hub_id,
+                "actual_time": env.now,
+                "dispatch_time": dispatch_time,
+                "minutes_since_dispatch": env.now - dispatch_time,
+                "occupancy_before": hub_alighted,
+                "alighted": hub_alighted,
+                "boarded": 0,
+                "occupancy_after": 0,
+                "queue_after": 0,
+            }
+        )
+
+    def dispatch_process():
+        if config.service_start > 0:
+            yield env.timeout(config.service_start)
+
+        while env.now < config.service_end:
+            idle_bus_ids = sorted(
+                bus_id for bus_id, bus in buses.items() if not bus.in_service
+            )
+            for bus_id in idle_bus_ids:
+                context = make_policy_context(bus_id)
+                decision = policy.decide_dispatch(context)
+                if decision is None:
+                    continue
+
+                try:
+                    route = config.route(decision.route_id)
+                except KeyError as exc:
+                    raise ValueError(
+                        f"policy {policy.name!r} chose unknown route {decision.route_id!r}"
+                    ) from exc
+
+                if env.now + route.trip_minutes > config.service_end + 1e-9:
+                    raise ValueError(
+                        f"policy {policy.name!r} dispatched {route.id!r} at {env.now:.2f}, "
+                        "but the route cannot return before service end"
+                    )
+
+                # Commit synchronously: later idle-bus decisions in this same
+                # tick immediately see the updated fleet/route state.
+                bus = buses[bus_id]
+                bus.start_route(route.id, env.now)
+                last_dispatch[route.id] = env.now
+                dispatch_rows.append(
+                    {
+                        "scenario_day": scenario_day,
+                        "weekday": weekday,
+                        "policy_name": policy.name,
+                        "bus_id": bus_id,
+                        "route_id": route.id,
+                        "dispatch_time": env.now,
+                        "route_trip_minutes": route.trip_minutes,
+                        "expected_return_time": env.now + route.trip_minutes,
+                        "policy_reason": decision.reason,
+                    }
+                )
+                env.process(route_process(bus_id, route, env.now))
+
+            next_time = env.now + config.decision_interval_minutes
+            if next_time >= config.service_end:
+                break
+            yield env.timeout(config.decision_interval_minutes)
+
+    for station_id in config.station_ids:
         station_demand = day_demand[day_demand["station_id"] == station_id]
         env.process(passenger_process(station_id, station_demand))
+    env.process(dispatch_process())
 
-    for bus_id in buses:
-        bus_schedule = timetable[timetable["bus_id"] == bus_id]
-        env.process(bus_process(bus_id, bus_schedule))
-
-    env.run(until=config.service_end)
+    # Run just beyond the boundary so route-return events scheduled exactly at
+    # service_end are processed before end-of-day accounting.
+    env.run(until=config.service_end + 1e-6)
 
     for station in stations.values():
         station.finalize(config.service_end)
@@ -333,6 +419,7 @@ def simulate_day(
     boarding_events = pd.DataFrame(boarding_rows)
     alighting_events = pd.DataFrame(alighting_rows)
     stop_events = pd.DataFrame(stop_rows)
+    dispatch_events = pd.DataFrame(dispatch_rows)
 
     wait = wait_summary(boarding_events)
     generated = int(day_demand["arrivals"].sum())
@@ -361,6 +448,7 @@ def simulate_day(
                 "scenario_day": scenario_day,
                 "weekday": weekday,
                 "policy_name": policy.name,
+                "route_id": config.route_for_station(station_id).id,
                 "station_id": station_id,
                 "generated_passengers": station.generated_count,
                 "boarded_passengers": station.boarded_count,
@@ -368,6 +456,50 @@ def simulate_day(
                 "average_queue": station.average_queue(duration),
                 "max_queue": station.max_queue,
                 **station_wait,
+            }
+        )
+
+    route_metric_rows: list[dict] = []
+    for route in config.routes:
+        route_stations = set(route.stations)
+        route_boarding = (
+            boarding_events[boarding_events["route_id"] == route.id]
+            if not boarding_events.empty
+            else boarding_events
+        )
+        route_wait = wait_summary(route_boarding)
+        route_metric_rows.append(
+            {
+                "scenario_day": scenario_day,
+                "weekday": weekday,
+                "policy_name": policy.name,
+                "route_id": route.id,
+                "dispatches": (
+                    int((dispatch_events["route_id"] == route.id).sum())
+                    if not dispatch_events.empty
+                    else 0
+                ),
+                "generated_passengers": sum(
+                    stations[station_id].generated_count for station_id in route_stations
+                ),
+                "boarded_passengers": sum(
+                    stations[station_id].boarded_count for station_id in route_stations
+                ),
+                "waiting_at_end": sum(
+                    stations[station_id].waiting_count for station_id in route_stations
+                ),
+                "average_queue": float(
+                    np.mean(
+                        [
+                            stations[station_id].average_queue(duration)
+                            for station_id in route_stations
+                        ]
+                    )
+                ),
+                "max_queue": max(
+                    stations[station_id].max_queue for station_id in route_stations
+                ),
+                **route_wait,
             }
         )
 
@@ -380,11 +512,13 @@ def simulate_day(
                 "policy_name": policy.name,
                 "bus_id": bus_id,
                 "capacity": bus.capacity,
+                "trips_completed": bus.trips_completed,
                 "boarded_passengers": bus.boarded_count,
                 "completed_passengers": bus.completed_count,
                 "onboard_at_end": bus.occupancy,
                 "max_occupancy": bus.max_occupancy,
                 "utilization": bus.utilization(duration),
+                "service_utilization": bus.service_utilization(duration),
             }
         )
 
@@ -392,8 +526,9 @@ def simulate_day(
         np.mean([station.average_queue(duration) for station in stations.values()])
     )
     max_queue = max(station.max_queue for station in stations.values())
-    avg_utilization = float(
-        np.mean([bus.utilization(duration) for bus in buses.values()])
+    avg_utilization = float(np.mean([bus.utilization(duration) for bus in buses.values()]))
+    avg_service_utilization = float(
+        np.mean([bus.service_utilization(duration) for bus in buses.values()])
     )
 
     daily_metrics = {
@@ -406,10 +541,12 @@ def simulate_day(
         "waiting_at_end": waiting_end,
         "onboard_at_end": onboard_end,
         "service_rate": boarded / generated if generated else 1.0,
+        "dispatches": len(dispatch_rows),
         **wait,
         "average_queue": average_queue,
         "max_queue": max_queue,
         "average_bus_utilization": avg_utilization,
+        "average_fleet_service_utilization": avg_service_utilization,
     }
 
     return TransitDayResult(
@@ -418,10 +555,12 @@ def simulate_day(
         policy_name=policy.name,
         daily_metrics=daily_metrics,
         station_metrics=pd.DataFrame(station_metric_rows),
+        route_metrics=pd.DataFrame(route_metric_rows),
         bus_metrics=pd.DataFrame(bus_metric_rows),
         boarding_events=boarding_events,
         alighting_events=alighting_events,
         stop_events=stop_events,
+        dispatch_events=dispatch_events,
     )
 
 
@@ -431,10 +570,4 @@ def simulate_static_day(
     *,
     seed: int = 2026,
 ) -> TransitDayResult:
-    """Backward-compatible wrapper around the policy-driven engine."""
-    return simulate_day(
-        day_demand,
-        config,
-        StaticPolicy(),
-        seed=seed,
-    )
+    return simulate_day(day_demand, config, StaticPolicy(), seed=seed)

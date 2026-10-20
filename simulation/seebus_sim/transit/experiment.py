@@ -11,7 +11,7 @@ from seebus_sim.transit.simulation import (
     SensorProvider,
     simulate_day,
 )
-from seebus_sim.transit.timetable import build_loop_timetable
+from seebus_sim.transit.timetable import build_static_dispatch_timetable
 
 
 PolicyFactory = Callable[[], SchedulingPolicy]
@@ -24,10 +24,12 @@ class TransitExperimentResult:
     timetable: pd.DataFrame
     daily_metrics: pd.DataFrame
     station_metrics: pd.DataFrame
+    route_metrics: pd.DataFrame
     bus_metrics: pd.DataFrame
     boarding_events: pd.DataFrame
     alighting_events: pd.DataFrame
     stop_events: pd.DataFrame
+    dispatch_events: pd.DataFrame
     summary: dict
 
 
@@ -45,12 +47,7 @@ def run_transit_experiment(
     prediction_provider: PredictionProvider | None = None,
     sensor_provider: SensorProvider | None = None,
 ) -> TransitExperimentResult:
-    """
-    Replay every benchmark day using a fresh policy instance per day.
-
-    `policy_factory` makes stateful policies safe: commitments/history kept by a
-    policy during one simulated day do not leak into the next day.
-    """
+    """Replay every benchmark day with a fresh policy instance per day."""
 
     day_results = []
     for scenario_day in sorted(benchmark_demand["scenario_day"].unique()):
@@ -70,10 +67,12 @@ def run_transit_experiment(
 
     daily_metrics = pd.DataFrame([result.daily_metrics for result in day_results])
     station_metrics = _concat([result.station_metrics for result in day_results])
+    route_metrics = _concat([result.route_metrics for result in day_results])
     bus_metrics = _concat([result.bus_metrics for result in day_results])
     boarding_events = _concat([result.boarding_events for result in day_results])
     alighting_events = _concat([result.alighting_events for result in day_results])
     stop_events = _concat([result.stop_events for result in day_results])
+    dispatch_events = _concat([result.dispatch_events for result in day_results])
 
     policy_names = set(daily_metrics["policy_name"].unique())
     if len(policy_names) != 1:
@@ -87,15 +86,14 @@ def run_transit_experiment(
     total_onboard = int(daily_metrics["onboard_at_end"].sum())
 
     waits = wait_summary(boarding_events)
-
-    if bus_metrics.empty:
-        average_bus_utilization = 0.0
-    else:
-        average_bus_utilization = float(bus_metrics["utilization"].mean())
-
-    # Average queue is already time-weighted within each station/day. Equal
-    # weighting here gives the mean queue length for a randomly chosen station
-    # and benchmark minute.
+    average_bus_utilization = (
+        float(bus_metrics["utilization"].mean()) if not bus_metrics.empty else 0.0
+    )
+    average_fleet_service_utilization = (
+        float(bus_metrics["service_utilization"].mean())
+        if not bus_metrics.empty
+        else 0.0
+    )
     average_queue = (
         float(station_metrics["average_queue"].mean())
         if not station_metrics.empty
@@ -111,22 +109,26 @@ def run_transit_experiment(
         "waiting_at_day_end": total_waiting,
         "onboard_at_day_end": total_onboard,
         "service_rate": total_boarded / total_generated if total_generated else 1.0,
+        "dispatches": int(daily_metrics["dispatches"].sum()),
         **waits,
         "average_queue": average_queue,
         "max_queue": int(station_metrics["max_queue"].max()) if not station_metrics.empty else 0,
         "average_bus_utilization": average_bus_utilization,
+        "average_fleet_service_utilization": average_fleet_service_utilization,
     }
 
     return TransitExperimentResult(
         config=config,
         policy_name=policy_name,
-        timetable=build_loop_timetable(config),
+        timetable=build_static_dispatch_timetable(config),
         daily_metrics=daily_metrics,
         station_metrics=station_metrics,
+        route_metrics=route_metrics,
         bus_metrics=bus_metrics,
         boarding_events=boarding_events,
         alighting_events=alighting_events,
         stop_events=stop_events,
+        dispatch_events=dispatch_events,
         summary=summary,
     )
 
@@ -137,7 +139,6 @@ def run_static_transit_experiment(
     *,
     seed: int = 2026,
 ) -> TransitExperimentResult:
-    """Backward-compatible static-timetable experiment wrapper."""
     return run_transit_experiment(
         benchmark_demand,
         config,

@@ -76,6 +76,10 @@ def _comparison_frame(
                 "average_queue": summary["average_queue"],
                 "max_queue": summary["max_queue"],
                 "average_bus_utilization": summary["average_bus_utilization"],
+                "average_fleet_service_utilization": summary.get(
+                    "average_fleet_service_utilization", 0.0
+                ),
+                "dispatches": summary.get("dispatches", 0),
                 "waiting_at_day_end": summary["waiting_at_day_end"],
             }
         )

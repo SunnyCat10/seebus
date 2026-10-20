@@ -6,61 +6,42 @@ from seebus_sim.transit.config import TransitConfig
 
 
 @dataclass(frozen=True)
-class ScheduledStop:
-    bus_id: str
-    station_id: str
-    arrival_time: float
+class ScheduledDispatch:
+    route_id: str
+    departure_time: float
     sequence: int
 
 
-def build_loop_timetable(config: TransitConfig) -> pd.DataFrame:
+def build_static_dispatch_timetable(config: TransitConfig) -> pd.DataFrame:
     """
-    Build an evenly-spaced fixed timetable for a one-way circular route.
+    Planned round-robin dispatches for the static control policy.
 
-    Buses are phased around the loop before the simulated day begins, which
-    avoids placing every bus at the first station at midnight. We only emit
-    stops that occur inside the configured service window.
+    This table is a reference schedule rather than a bus-specific stop list.
+    The shared bus pool supplies whichever idle bus is available when a
+    dispatch is due.
     """
 
     rows: list[dict] = []
-    loop_minutes = config.loop_minutes
-    headway = config.scheduled_headway
+    departure_time = config.service_start
+    sequence = 0
 
-    for bus_index in range(config.bus_count):
-        bus_id = f"bus-{bus_index + 1}"
-        phase = bus_index * headway
-
-        # The previous pass through route[0] may be before service_start. This
-        # lets a bus's first in-window stop naturally be B/C/D rather than A.
-        first_route_start = config.service_start + phase - loop_minutes
-        sequence = 0
-
-        while True:
-            station_index = sequence % len(config.route)
-            cycle = sequence // len(config.route)
-            arrival_time = (
-                first_route_start
-                + cycle * loop_minutes
-                + station_index * config.travel_minutes
+    while departure_time < config.service_end:
+        route = config.routes[sequence % len(config.routes)]
+        # Do not plan a trip that cannot return to the hub before service end.
+        if departure_time + route.trip_minutes <= config.service_end:
+            rows.append(
+                {
+                    "route_id": route.id,
+                    "departure_time": float(departure_time),
+                    "sequence": sequence,
+                }
             )
+        departure_time += config.static_dispatch_interval_minutes
+        sequence += 1
 
-            if arrival_time >= config.service_end:
-                break
+    return pd.DataFrame(rows)
 
-            if arrival_time >= config.service_start:
-                rows.append(
-                    {
-                        "bus_id": bus_id,
-                        "station_id": config.route[station_index],
-                        "arrival_time": float(arrival_time),
-                        "sequence": sequence,
-                    }
-                )
 
-            sequence += 1
-
-    return (
-        pd.DataFrame(rows)
-        .sort_values(["arrival_time", "bus_id", "sequence"])
-        .reset_index(drop=True)
-    )
+# Old name kept as a small compatibility alias for external notebooks/scripts.
+def build_loop_timetable(config: TransitConfig) -> pd.DataFrame:
+    return build_static_dispatch_timetable(config)

@@ -94,6 +94,32 @@ def _station_figure(result: ExperimentResult) -> go.Figure:
     return fig
 
 
+
+
+def _route_dispatch_figure(result: ExperimentResult) -> go.Figure:
+    fig = go.Figure()
+    for label, policy in result.policies.items():
+        if policy.dispatch_events.empty:
+            continue
+        summary = (
+            policy.dispatch_events.groupby("route_id", as_index=False)
+            .size()
+            .rename(columns={"size": "dispatches"})
+        )
+        fig.add_bar(
+            x=summary["route_id"],
+            y=summary["dispatches"],
+            name=label,
+        )
+    fig.update_layout(
+        title="Bus dispatches by route",
+        barmode="group",
+        xaxis_title="Route",
+        yaxis_title="Dispatches",
+        margin=dict(l=50, r=20, t=55, b=45),
+    )
+    return fig
+
 def _convergence_figure(result: ExperimentResult) -> go.Figure:
     frame = result.demand.convergence
     fig = go.Figure()
@@ -185,6 +211,7 @@ def save_dashboard(result: ExperimentResult, path: Path) -> None:
         _station_figure(result),
         _convergence_figure(result),
         _queue_utilization_figure(result),
+        _route_dispatch_figure(result),
     ]
     figure_html = []
     for index, figure in enumerate(figures):
@@ -218,7 +245,7 @@ table.events th, table.events td {{ border-bottom: 1px solid #ddd; padding: 8px;
 <body>
 <main>
 <h1>SeeBus simulation report</h1>
-<p class="sub">Experiment: {escape(config.name)} · {config.demand.training_days} training days · {config.demand.benchmark_days} benchmark days · {len(config.station_ids)} stations</p>
+<p class="sub">Experiment: {escape(config.name)} · {config.demand.training_days} training days · {config.demand.benchmark_days} benchmark days · {len(config.transit.routes)} routes · {len(config.station_ids)} stations</p>
 <div class="cards">{_summary_cards(result)}</div>
 <div class="grid">
   <section class="panel">{figure_html[0]}</section>
@@ -226,6 +253,7 @@ table.events th, table.events td {{ border-bottom: 1px solid #ddd; padding: 8px;
   <section class="panel">{figure_html[1]}</section>
   <section class="panel">{figure_html[2]}</section>
   <section class="panel">{figure_html[4]}</section>
+  <section class="panel">{figure_html[5]}</section>
   <section class="panel"><h2>One-off benchmark events</h2>{_event_table(result)}</section>
 </div>
 </main>

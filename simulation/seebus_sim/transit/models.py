@@ -51,7 +51,6 @@ class StationQueue:
         return max(0.0, now - self._queue[0].arrival_time)
 
     def board(self, capacity: int, now: float) -> list[PassengerBatch]:
-        """Remove up to capacity passengers in FIFO order."""
         if capacity <= 0 or self.waiting_count == 0:
             return []
 
@@ -89,11 +88,12 @@ class StationQueue:
 
 
 class BusState:
-    """Bus occupancy state with time-weighted utilization accounting."""
+    """Shared-hub bus state plus passenger and utilization accounting."""
 
-    def __init__(self, bus_id: str, capacity: int):
+    def __init__(self, bus_id: str, capacity: int, hub_id: str):
         self.bus_id = bus_id
         self.capacity = capacity
+        self.hub_id = hub_id
         self.onboard: list[OnboardBatch] = []
         self.occupancy = 0
         self.max_occupancy = 0
@@ -101,6 +101,13 @@ class BusState:
         self._last_change_time = 0.0
         self.boarded_count = 0
         self.completed_count = 0
+
+        self.in_service = False
+        self.current_route_id: str | None = None
+        self.current_location_id = hub_id
+        self.trips_completed = 0
+        self.busy_minutes = 0.0
+        self._route_started_at: float | None = None
 
     @property
     def free_capacity(self) -> int:
@@ -111,6 +118,30 @@ class BusState:
             raise ValueError("bus time cannot move backwards")
         self.occupancy_area += self.occupancy * (now - self._last_change_time)
         self._last_change_time = now
+
+    def start_route(self, route_id: str, now: float) -> None:
+        if self.in_service:
+            raise ValueError(f"bus {self.bus_id} is already in service")
+        if self.occupancy != 0:
+            raise ValueError("bus must be empty when dispatched from the hub")
+        self._advance(now)
+        self.in_service = True
+        self.current_route_id = route_id
+        self.current_location_id = self.hub_id
+        self._route_started_at = now
+
+    def finish_route(self, now: float) -> None:
+        if not self.in_service or self._route_started_at is None:
+            raise ValueError(f"bus {self.bus_id} is not in service")
+        if self.occupancy != 0:
+            raise ValueError("bus must unload all passengers before returning idle")
+        self._advance(now)
+        self.busy_minutes += now - self._route_started_at
+        self.trips_completed += 1
+        self.in_service = False
+        self.current_route_id = None
+        self.current_location_id = self.hub_id
+        self._route_started_at = None
 
     def alight(self, station_id: str, now: float) -> list[OnboardBatch]:
         self._advance(now)
@@ -147,7 +178,13 @@ class BusState:
 
     def finalize(self, now: float) -> None:
         self._advance(now)
+        if self.in_service and self._route_started_at is not None:
+            self.busy_minutes += now - self._route_started_at
+            self._route_started_at = now
 
     def utilization(self, duration: float) -> float:
         denominator = self.capacity * duration
         return self.occupancy_area / denominator if denominator > 0 else 0.0
+
+    def service_utilization(self, duration: float) -> float:
+        return self.busy_minutes / duration if duration > 0 else 0.0

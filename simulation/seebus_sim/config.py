@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from seebus_sim.transit import TransitConfig
+from seebus_sim.transit import RouteConfig, TransitConfig
 
 
 @dataclass(frozen=True)
@@ -31,7 +31,6 @@ class ExperimentConfig:
     """One reproducible SeeBus simulation experiment."""
 
     name: str
-    station_ids: tuple[str, ...]
     demand: DemandConfig
     transit: TransitConfig
     demand_seed: int = 42
@@ -40,27 +39,35 @@ class ExperimentConfig:
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("experiment name must not be empty")
-        if len(self.station_ids) < 2:
-            raise ValueError("station_ids must contain at least two stations")
-        if len(set(self.station_ids)) != len(self.station_ids):
-            raise ValueError("station_ids must be unique")
-        if tuple(self.transit.route) != tuple(self.station_ids):
-            raise ValueError("transit route must match station_ids for the current loop model")
+
+    @property
+    def station_ids(self) -> tuple[str, ...]:
+        return self.transit.station_ids
 
 
 def default_experiment_config() -> ExperimentConfig:
-    """The baseline configuration used throughout the current research setup."""
+    """Baseline shared-hub experiment used by the research runner."""
 
-    stations = ("station-a", "station-b", "station-c", "station-d")
+    routes = (
+        RouteConfig(
+            id="route-a",
+            stations=("station-a", "station-b"),
+            travel_minutes=5.0,
+        ),
+        RouteConfig(
+            id="route-b",
+            stations=("station-c", "station-d"),
+            travel_minutes=5.0,
+        ),
+    )
     return ExperimentConfig(
         name="baseline",
-        station_ids=stations,
         demand=DemandConfig(),
         transit=TransitConfig(
-            route=stations,
-            bus_count=2,
+            routes=routes,
+            bus_count=3,
             bus_capacity=75,
-            travel_minutes=5.0,
+            static_dispatch_interval_minutes=6.0,
         ),
         demand_seed=42,
         transit_seed=2026,

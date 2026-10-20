@@ -1,21 +1,14 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from seebus_sim.transit.timetable import ScheduledStop
-
 
 @dataclass(frozen=True)
 class BusObservation:
-    """Operational bus state that a scheduling policy is allowed to observe."""
+    """State of one idle bus currently available at the shared hub."""
 
     bus_id: str
     capacity: int
-    occupancy: int
-    current_station_id: str | None
-
-    @property
-    def free_capacity(self) -> int:
-        return self.capacity - self.occupancy
+    available_bus_count: int
 
 
 @dataclass(frozen=True)
@@ -23,12 +16,13 @@ class StationObservation:
     """
     Policy-visible information for one station.
 
-    Deliberately excludes the simulator's exact queue length and hidden true
-    lambda. A future sensor provider can expose a noisy/approximate occupancy,
-    while a prediction provider can expose learned historical demand.
+    Exact simulator queue length and hidden true lambda are deliberately not
+    exposed. Historical prediction and future sensor estimates enter through
+    the corresponding providers.
     """
 
     station_id: str
+    route_id: str
     predicted_lambda: float | None
     sensor_occupancy: float | None
     last_served_time: float | None
@@ -36,17 +30,34 @@ class StationObservation:
 
 
 @dataclass(frozen=True)
+class RouteObservation:
+    """Policy-visible summary for one fixed route."""
+
+    route_id: str
+    station_ids: tuple[str, ...]
+    trip_minutes: float
+    predicted_arrivals_next_horizon: float | None
+    sensor_occupancy: float | None
+    last_dispatch_time: float | None
+    minutes_since_dispatch: float | None
+    buses_in_service: int
+    can_complete_before_service_end: bool
+
+
+@dataclass(frozen=True)
 class PolicyContext:
-    """Snapshot supplied to a policy whenever a bus needs its next stop."""
+    """Snapshot supplied when an idle bus may be dispatched from the hub."""
 
     now: float
     scenario_day: int
     weekday: str
     bus: BusObservation
     stations: tuple[StationObservation, ...]
-    planned_stop: ScheduledStop
-    route: tuple[str, ...]
-    travel_minutes: float
+    routes: tuple[RouteObservation, ...]
+    service_start: float
+    service_end: float
+    static_dispatch_interval_minutes: float
+    prediction_horizon_minutes: float
 
     def station(self, station_id: str) -> StationObservation:
         for observation in self.stations:
@@ -54,25 +65,28 @@ class PolicyContext:
                 return observation
         raise KeyError(station_id)
 
+    def route(self, route_id: str) -> RouteObservation:
+        for observation in self.routes:
+            if observation.route_id == route_id:
+                return observation
+        raise KeyError(route_id)
+
 
 @dataclass(frozen=True)
-class StopDecision:
+class DispatchDecision:
     """
-    A policy's choice for one service opportunity.
+    Dispatch this idle bus onto one complete route immediately.
 
-    `target_time` is the earliest time the policy wants the bus to serve the
-    chosen station. The simulator still enforces one-way route travel time, so
-    an infeasible target is automatically delayed to the earliest reachable
-    time.
+    Returning ``None`` from ``decide_dispatch`` means keep the bus idle at the
+    hub until a later decision opportunity.
     """
 
-    station_id: str
-    target_time: float
+    route_id: str
     reason: str = ""
 
 
 class SchedulingPolicy(ABC):
-    """Interface implemented by all SeeBus scheduling policies."""
+    """Interface implemented by all SeeBus route-allocation policies."""
 
     @property
     @abstractmethod
@@ -80,5 +94,5 @@ class SchedulingPolicy(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def decide_next_stop(self, context: PolicyContext) -> StopDecision:
+    def decide_dispatch(self, context: PolicyContext) -> DispatchDecision | None:
         raise NotImplementedError

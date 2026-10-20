@@ -2,14 +2,12 @@ from dataclasses import replace
 
 from seebus_sim.config import DemandConfig, ExperimentConfig
 from seebus_sim.experiments import PolicySpec, run_batch, run_experiment
-from seebus_sim.transit import StaticPolicy, TransitConfig
+from seebus_sim.transit import RouteConfig, StaticPolicy, TransitConfig
 
 
 def _tiny_config(name: str = "tiny", demand_seed: int = 10) -> ExperimentConfig:
-    stations = ("a", "b", "c")
     return ExperimentConfig(
         name=name,
-        station_ids=stations,
         demand=DemandConfig(
             training_days=2,
             benchmark_days=2,
@@ -18,10 +16,13 @@ def _tiny_config(name: str = "tiny", demand_seed: int = 10) -> ExperimentConfig:
             event_probability=0.0,
         ),
         transit=TransitConfig(
-            route=stations,
+            routes=(
+                RouteConfig("route-a", ("a1", "a2"), travel_minutes=5.0),
+                RouteConfig("route-b", ("b1", "b2"), travel_minutes=5.0),
+            ),
             bus_count=2,
             bus_capacity=60,
-            travel_minutes=5.0,
+            static_dispatch_interval_minutes=10.0,
         ),
         demand_seed=demand_seed,
         transit_seed=99,
@@ -37,6 +38,8 @@ def test_experiment_runner_produces_policy_comparison():
     assert list(result.policies) == ["Static"]
     assert result.comparison.loc[0, "policy"] == "Static"
     assert result.comparison.loc[0, "generated_passengers"] > 0
+    assert not result.policies["Static"].route_metrics.empty
+    assert not result.policies["Static"].dispatch_events.empty
 
 
 def test_batch_combines_experiment_summaries():
