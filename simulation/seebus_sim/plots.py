@@ -103,3 +103,62 @@ def save_benchmark_variation_plot(
     fig.tight_layout()
     fig.savefig(path, dpi=150)
     plt.close(fig)
+
+
+def save_transit_daily_wait_plot(daily_metrics: pd.DataFrame, path: Path) -> None:
+    fig, ax = plt.subplots(figsize=(9, 4.5))
+    ax.plot(
+        daily_metrics["scenario_day"],
+        daily_metrics["average_wait_minutes"],
+        marker="o",
+        label="Average wait",
+    )
+    ax.plot(
+        daily_metrics["scenario_day"],
+        daily_metrics["p95_wait_minutes"],
+        marker="o",
+        label="P95 wait",
+    )
+    ax.set_title("Static timetable passenger waiting time")
+    ax.set_xlabel("Benchmark day")
+    ax.set_ylabel("Minutes")
+    ax.grid(True, alpha=0.25)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+
+
+def save_transit_station_wait_plot(station_metrics: pd.DataFrame, path: Path) -> None:
+    summary = (
+        station_metrics.groupby("station_id", as_index=False)
+        .agg(
+            average_wait_minutes=("average_wait_minutes", "mean"),
+            p95_wait_minutes=("p95_wait_minutes", "mean"),
+        )
+    )
+
+    x = range(len(summary))
+    width = 0.36
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    ax.bar(
+        [value - width / 2 for value in x],
+        summary["average_wait_minutes"],
+        width=width,
+        label="Average wait",
+    )
+    ax.bar(
+        [value + width / 2 for value in x],
+        summary["p95_wait_minutes"],
+        width=width,
+        label="P95 wait",
+    )
+    ax.set_xticks(list(x), summary["station_id"])
+    ax.set_title("Static timetable waiting time by station")
+    ax.set_ylabel("Minutes")
+    ax.grid(True, axis="y", alpha=0.25)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
