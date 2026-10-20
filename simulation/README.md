@@ -1,81 +1,13 @@
 # SeeBus Simulation
 
-Lightweight simulation/experimentation module for the SeeBus project.
+Lightweight research simulator for evaluating adaptive bus-scheduling policies under repeatable synthetic passenger demand.
 
-The project now has two layers:
+The current version has four layers:
 
-1. a richer hidden passenger-demand world plus a deliberately simpler learned
-   historical demand model;
-2. a SimPy transit world that replays the fixed benchmark through station
-   queues and buses, producing passenger waiting-time metrics;
-3. a scheduling-policy interface, with `StaticPolicy` reproducing the original
-   fixed timetable as the control policy.
-
-## Layer 1: hidden demand and historical learning
-
-For each station, the simulator generates a normal time-of-day demand curve and
-assigns a broad station archetype (`residential`, `office`, `shopping`, or
-`mixed`). The hidden passenger-arrival rate changes by day:
-
-```text
-true_lambda
-  = normal time-of-day lambda
-  x weekday factor
-  x day-to-day random factor
-  x one-off event factor
-```
-
-Passenger arrivals are sampled every minute:
-
-```text
-arrivals ~ Poisson(true_lambda)
-```
-
-The historical predictor does **not** receive the hidden factors. It learns only
-one average `lambda_hat` for each station and 15-minute time bucket.
-
-Training and benchmark use independent random streams, so changing the amount
-of training data does not change the benchmark world.
-
-## Layer 2: static transit baseline
-
-The fixed benchmark passenger arrivals are replayed through a simple circular
-route:
-
-```text
-station-a -> station-b -> station-c -> station-d -> station-a
-```
-
-The baseline contains:
-
-- FIFO station queues;
-- passenger destinations along the circular route;
-- buses with finite capacity;
-- fixed travel times;
-- an evenly spaced static timetable;
-- passenger boarding and alighting;
-- time-weighted station queue lengths;
-- time-weighted bus utilization;
-- waiting-time metrics.
-
-SimPy owns the simulation clock and event scheduling. Domain state is kept in
-ordinary Python objects (`StationQueue`, `BusState`, passenger batches).
-
-### Important simplifications
-
-This is intentionally still a lightweight research model:
-
-- one one-way circular route;
-- fixed travel time between neighboring stations;
-- no traffic or road network;
-- no dwell-time model yet;
-- no transfers;
-- every passenger chooses a downstream stop on the same loop;
-- adaptive policies can now plug into the engine, but only the static control
-  policy is implemented so far.
-
-Those choices keep the static baseline easy to validate before policies start
-changing the schedule.
+1. **Demand world** — generates station-specific rush hours, weekday behavior, day-to-day variation, rare events, and Poisson arrivals.
+2. **Demand learner** — learns a deliberately simpler historical arrival-rate model from training days.
+3. **Transit world** — replays unseen benchmark days through station queues, buses, capacity constraints, destinations, and a fixed loop route using SimPy.
+4. **Policy + reporting** — scheduling policies receive only allowed observations; results are exported as CSV, PNG, and an interactive HTML report.
 
 ## Setup
 
@@ -87,160 +19,169 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## Run
+## Run the default experiment
 
 ```powershell
 python run.py
 ```
 
-The main demand knobs are near the top of `run.py`:
+The default experiment uses:
 
-```python
-demand_result = run_demand_experiment(
-    station_ids=["station-a", "station-b", "station-c", "station-d"],
-    training_days=14,
-    benchmark_days=30,
-    bucket_minutes=15,
-    seed=42,
-    daily_noise_std=0.12,
-    event_probability=0.07,
-)
-```
+- 4 stations
+- 14 demand-training days
+- 30 unseen benchmark days
+- 15-minute historical demand buckets
+- 2 buses
+- 75-passenger bus capacity
+- 5 minutes between neighboring stations
+- 10-minute static headway
 
-The static transit baseline is configured separately:
-
-```python
-transit_config = TransitConfig(
-    route=("station-a", "station-b", "station-c", "station-d"),
-    bus_count=2,
-    bus_capacity=75,
-    travel_minutes=5.0,
-)
-```
-
-For this four-stop loop the scheduled headway is:
+## Output
 
 ```text
-loop time / bus count
-= (4 stops x 5 min) / 2
-= 10 min
+output/
+├── report.html                 # interactive research dashboard
+├── policy_comparison.csv       # one row per policy
+├── demand/
+│   ├── training_demand.csv
+│   ├── benchmark_demand.csv
+│   ├── training_history.csv
+│   ├── prediction_comparison.csv
+│   ├── convergence.csv
+│   └── events.csv
+├── policies/
+│   └── static/
+│       ├── timetable.csv
+│       ├── daily_metrics.csv
+│       ├── station_metrics.csv
+│       ├── bus_metrics.csv
+│       ├── boarding_events.csv
+│       ├── alighting_events.csv
+│       └── stop_events.csv
+└── plots/
+    ├── demand-convergence.png
+    ├── demand-profile.png
+    ├── demand-variation.png
+    ├── policy-comparison.png
+    ├── static-daily-wait.png
+    └── static-station-wait.png
 ```
 
-## Scheduling policy interface
+`report.html` uses Plotly for interactive charts. It loads Plotly JavaScript from the CDN when opened; the PNG and CSV outputs remain fully local.
 
-The transit engine is now policy-driven. `StaticPolicy` is the control and keeps
-the old fixed timetable behavior exactly:
+## Architecture
 
-```python
-from seebus_sim.transit import StaticPolicy, run_transit_experiment
-
-result = run_transit_experiment(
-    benchmark_demand=demand_result.benchmark_demand,
-    config=transit_config,
-    policy_factory=StaticPolicy,
-    seed=2026,
-)
+```text
+ExperimentConfig
+      │
+      ├── Demand generator ──> training + benchmark demand
+      │                           │
+      │                           └──> historical predictor
+      │
+      └── same benchmark demand replayed for every policy
+                                  │
+                                  v
+                        Transit simulation (SimPy)
+                                  │
+                                  v
+                         SchedulingPolicy
+                                  │
+                                  v
+                           metrics + events
+                                  │
+                     ┌────────────┴────────────┐
+                     v                         v
+                   CSV/PNG               report.html
 ```
 
-Each policy implements:
+The policy does **not** receive hidden simulator state such as the true lambda, event multiplier, or exact passenger queue. Policy-visible information is defined in `seebus_sim/transit/policies/base.py`.
+
+## Main modules
+
+```text
+seebus_sim/
+├── config.py                    # experiment configuration
+├── demand/                      # hidden demand world + predictor
+├── transit/                     # queues, buses, timetable, SimPy engine
+│   └── policies/                # policy interface + implementations
+├── experiments/                 # single-run and batch orchestration
+└── reporting/                   # exports, plots, dashboard, console summary
+```
+
+`run.py` is intentionally thin: configure an experiment, choose policies, run it, and report the results.
+
+## Add another policy
+
+Implement `SchedulingPolicy`:
 
 ```python
-class SchedulingPolicy:
+from seebus_sim.transit import PolicyContext, SchedulingPolicy, StopDecision
+
+
+class MyPolicy(SchedulingPolicy):
     @property
     def name(self) -> str:
-        ...
+        return "my-policy"
 
     def decide_next_stop(self, context: PolicyContext) -> StopDecision:
-        ...
+        return StopDecision(
+            station_id=context.planned_stop.station_id,
+            target_time=context.planned_stop.arrival_time,
+            reason="example",
+        )
 ```
 
-At each service opportunity the policy receives a `PolicyContext` containing:
-
-- current simulation time and weekday;
-- the bus's current station, occupancy, capacity, and free capacity;
-- the original planned stop/time;
-- the route and fixed per-segment travel time;
-- for each station: learned `predicted_lambda`, optional sensor occupancy, and
-  time since it was last served.
-
-The context deliberately does **not** expose the hidden true lambda or exact
-simulator queue length. This prevents adaptive policies from cheating. Future
-historical and sensor models enter through `prediction_provider` and
-`sensor_provider`.
-
-A policy returns:
+Then add it to `run.py`:
 
 ```python
-StopDecision(
-    station_id="station-c",
-    target_time=context.now,
-    reason="high predicted demand",
+policies = [
+    PolicySpec("Static", StaticPolicy),
+    PolicySpec("My policy", MyPolicy),
+]
+```
+
+Both policies receive the **same benchmark passenger demand**, making the comparison paired and reproducible.
+
+Policies that need constructor arguments can use a factory:
+
+```python
+PolicySpec("Weighted", lambda: WeightedPolicy(sensor_weight=0.7))
+```
+
+## Run batches later
+
+The experiment layer already supports multiple configurations:
+
+```python
+from dataclasses import replace
+
+from seebus_sim.config import default_experiment_config
+from seebus_sim.experiments import PolicySpec, run_batch
+from seebus_sim.transit import StaticPolicy
+
+base = default_experiment_config()
+
+configs = [
+    replace(base, name=f"seed-{seed}", demand_seed=seed)
+    for seed in range(10)
+]
+
+batch = run_batch(
+    configs,
+    [PolicySpec("Static", StaticPolicy)],
 )
+
+print(batch.comparison)
 ```
 
-The simulator then enforces physical travel along the one-way loop. A policy can
-request an immediate stop, but it cannot teleport a bus to an unreachable
-station. Policy decisions, planned stops, chosen stops, delays, and reasons are
-recorded in `static_stop_events.csv` for debugging and later comparison.
+This is intended for future experiments such as:
 
-`simulate_static_day()` and `run_static_transit_experiment()` remain as
-backward-compatible wrappers.
-
-## Transit metrics
-
-The static baseline reports:
-
-- generated / boarded / completed passengers;
-- service rate;
-- average passenger wait;
-- median passenger wait;
-- P95 passenger wait;
-- maximum passenger wait;
-- average and maximum station queue;
-- bus occupancy/utilization;
-- passengers still waiting at the end of a benchmark day.
-
-Waiting-time statistics are passenger-weighted even though the simulator stores
-passengers in batches for efficiency.
-
-## Outputs
-
-Demand layer:
-
-```text
-output/
-├── training_demand.csv
-├── benchmark_demand.csv
-├── training_history.csv
-├── prediction_comparison.csv
-├── events.csv
-├── convergence.csv
-├── convergence.png
-├── station-a-profile.png
-└── station-a-benchmark-variation.png
-```
-
-Static transit layer adds:
-
-```text
-output/
-├── static_timetable.csv
-├── static_daily_metrics.csv
-├── static_station_metrics.csv
-├── static_bus_metrics.csv
-├── static_boarding_events.csv
-├── static_alighting_events.csv
-├── static_stop_events.csv
-├── static-daily-wait.png
-└── static-station-wait.png
-```
-
-`benchmark_demand.csv` remains the fixed demand replay source. Future scheduling
-policies should use the same benchmark arrivals and transit random seed so they
-are compared against the same passenger population.
-
-Hidden diagnostic columns such as `true_lambda`, weekday/day/event factors are
-for research/evaluation only and must not be exposed to scheduling policies.
+- several random seeds
+- different fleet sizes/capacities
+- different event rates
+- different demand noise levels
+- multiple policies over the exact same scenarios
+- parameter sweeps for weighted policies
 
 ## Tests
 
@@ -248,16 +189,8 @@ for research/evaluation only and must not be exposed to scheduling policies.
 python -m pytest
 ```
 
-## Next milestone
+The tests cover demand reproducibility, passenger conservation, FIFO queues, policy routing constraints, static-policy regression, and the experiment/batch orchestration layer.
 
-The policy layer is now in place. The next milestone is to implement policies
-without changing the demand or transit world:
+## Current intentional simplifications
 
-1. static timetable (`StaticPolicy`, current baseline)
-2. historical-demand priority
-3. sensor-only priority
-4. hybrid historical + sensor priority
-5. weighted / fairness-aware policies
-
-All policies should be benchmarked against the same replayable passenger days
-and transit seed.
+The simulator currently models a single one-way loop route with fixed segment travel time. It does not yet model road traffic, transfers, multiple routes, variable dwell time, or correlated city-wide disruptions. Those can be added later if they become useful to the research question.
