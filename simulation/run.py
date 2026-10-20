@@ -8,7 +8,7 @@ from seebus_sim.plots import (
     save_transit_daily_wait_plot,
     save_transit_station_wait_plot,
 )
-from seebus_sim.transit import TransitConfig, run_static_transit_experiment
+from seebus_sim.transit import StaticPolicy, TransitConfig, run_transit_experiment
 
 
 if __name__ == "__main__":
@@ -30,9 +30,10 @@ if __name__ == "__main__":
         bus_capacity=75,
         travel_minutes=5.0,
     )
-    transit_result = run_static_transit_experiment(
+    transit_result = run_transit_experiment(
         benchmark_demand=demand_result.benchmark_demand,
         config=transit_config,
+        policy_factory=StaticPolicy,
         seed=2026,
     )
 

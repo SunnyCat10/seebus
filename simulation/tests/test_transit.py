@@ -86,3 +86,73 @@ def test_transit_destination_generation_is_reproducible():
 
     pd.testing.assert_frame_equal(first.boarding_events, second.boarding_events)
     pd.testing.assert_frame_equal(first.alighting_events, second.alighting_events)
+
+
+def test_static_policy_wrapper_matches_generic_engine():
+    from seebus_sim.transit.policies import StaticPolicy
+    from seebus_sim.transit.simulation import simulate_day
+
+    config = TransitConfig(
+        route=("a", "b", "c", "d"),
+        bus_count=2,
+        bus_capacity=30,
+        travel_minutes=5.0,
+    )
+    demand = _small_day(config.route, arrivals_per_station=20)
+
+    wrapper = simulate_static_day(demand, config, seed=321)
+    generic = simulate_day(demand, config, StaticPolicy(), seed=321)
+
+    assert wrapper.daily_metrics == generic.daily_metrics
+    pd.testing.assert_frame_equal(wrapper.boarding_events, generic.boarding_events)
+    pd.testing.assert_frame_equal(wrapper.alighting_events, generic.alighting_events)
+    pd.testing.assert_frame_equal(wrapper.stop_events, generic.stop_events)
+
+
+def test_policy_can_redirect_a_service_opportunity_and_travel_time_is_enforced():
+    from seebus_sim.transit.policies import SchedulingPolicy, StopDecision
+    from seebus_sim.transit.simulation import simulate_day
+
+    class RedirectFirstStopPolicy(SchedulingPolicy):
+        def __init__(self):
+            self.calls = 0
+
+        @property
+        def name(self) -> str:
+            return "redirect-first"
+
+        def decide_next_stop(self, context):
+            self.calls += 1
+            if self.calls == 2 and context.bus.current_station_id is not None:
+                # Skip one station ahead on the one-way loop. The requested
+                # target time is immediate, but the engine must still enforce
+                # physical route travel time.
+                current = context.route.index(context.bus.current_station_id)
+                target = context.route[(current + 2) % len(context.route)]
+                return StopDecision(target, context.now, "test redirect")
+            return StopDecision(
+                context.planned_stop.station_id,
+                context.planned_stop.arrival_time,
+                "follow plan",
+            )
+
+    config = TransitConfig(
+        route=("a", "b", "c", "d"),
+        bus_count=1,
+        bus_capacity=30,
+        travel_minutes=5.0,
+    )
+    result = simulate_day(
+        _small_day(config.route, arrivals_per_station=2),
+        config,
+        RedirectFirstStopPolicy(),
+        seed=22,
+    )
+
+    redirected = result.stop_events[
+        result.stop_events["policy_reason"] == "test redirect"
+    ]
+    assert not redirected.empty
+    row = redirected.iloc[0]
+    assert row["required_travel_minutes"] == 10.0
+    assert row["actual_time"] >= row["policy_target_time"] + 10.0

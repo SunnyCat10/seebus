@@ -45,6 +45,11 @@ class StationQueue:
         self.generated_count += batch.count
         self.max_queue = max(self.max_queue, self.waiting_count)
 
+    def oldest_wait_minutes(self, now: float) -> float:
+        if not self._queue:
+            return 0.0
+        return max(0.0, now - self._queue[0].arrival_time)
+
     def board(self, capacity: int, now: float) -> list[PassengerBatch]:
         """Remove up to capacity passengers in FIFO order."""
         if capacity <= 0 or self.waiting_count == 0:

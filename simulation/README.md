@@ -6,8 +6,10 @@ The project now has two layers:
 
 1. a richer hidden passenger-demand world plus a deliberately simpler learned
    historical demand model;
-2. a static SimPy transit baseline that replays the fixed benchmark through
-   station queues and buses, producing passenger waiting-time metrics.
+2. a SimPy transit world that replays the fixed benchmark through station
+   queues and buses, producing passenger waiting-time metrics;
+3. a scheduling-policy interface, with `StaticPolicy` reproducing the original
+   fixed timetable as the control policy.
 
 ## Layer 1: hidden demand and historical learning
 
@@ -69,7 +71,8 @@ This is intentionally still a lightweight research model:
 - no dwell-time model yet;
 - no transfers;
 - every passenger chooses a downstream stop on the same loop;
-- no adaptive scheduling yet.
+- adaptive policies can now plug into the engine, but only the static control
+  policy is implemented so far.
 
 Those choices keep the static baseline easy to validate before policies start
 changing the schedule.
@@ -122,6 +125,66 @@ loop time / bus count
 = (4 stops x 5 min) / 2
 = 10 min
 ```
+
+## Scheduling policy interface
+
+The transit engine is now policy-driven. `StaticPolicy` is the control and keeps
+the old fixed timetable behavior exactly:
+
+```python
+from seebus_sim.transit import StaticPolicy, run_transit_experiment
+
+result = run_transit_experiment(
+    benchmark_demand=demand_result.benchmark_demand,
+    config=transit_config,
+    policy_factory=StaticPolicy,
+    seed=2026,
+)
+```
+
+Each policy implements:
+
+```python
+class SchedulingPolicy:
+    @property
+    def name(self) -> str:
+        ...
+
+    def decide_next_stop(self, context: PolicyContext) -> StopDecision:
+        ...
+```
+
+At each service opportunity the policy receives a `PolicyContext` containing:
+
+- current simulation time and weekday;
+- the bus's current station, occupancy, capacity, and free capacity;
+- the original planned stop/time;
+- the route and fixed per-segment travel time;
+- for each station: learned `predicted_lambda`, optional sensor occupancy, and
+  time since it was last served.
+
+The context deliberately does **not** expose the hidden true lambda or exact
+simulator queue length. This prevents adaptive policies from cheating. Future
+historical and sensor models enter through `prediction_provider` and
+`sensor_provider`.
+
+A policy returns:
+
+```python
+StopDecision(
+    station_id="station-c",
+    target_time=context.now,
+    reason="high predicted demand",
+)
+```
+
+The simulator then enforces physical travel along the one-way loop. A policy can
+request an immediate stop, but it cannot teleport a bus to an unreachable
+station. Policy decisions, planned stops, chosen stops, delays, and reasons are
+recorded in `static_stop_events.csv` for debugging and later comparison.
+
+`simulate_static_day()` and `run_static_transit_experiment()` remain as
+backward-compatible wrappers.
 
 ## Transit metrics
 
@@ -187,13 +250,14 @@ python -m pytest
 
 ## Next milestone
 
-Once the static baseline metrics look sensible, add a scheduling-policy layer
+The policy layer is now in place. The next milestone is to implement policies
 without changing the demand or transit world:
 
-1. static timetable (current baseline)
-2. sensor-only priority
-3. historical-demand priority
+1. static timetable (`StaticPolicy`, current baseline)
+2. historical-demand priority
+3. sensor-only priority
 4. hybrid historical + sensor priority
 5. weighted / fairness-aware policies
 
-All policies should be benchmarked against the same replayable passenger days.
+All policies should be benchmarked against the same replayable passenger days
+and transit seed.
