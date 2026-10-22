@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from seebus_sim.experiments import ExperimentResult
+from seebus_sim.experiments import BatchResult, ExperimentResult
 
 
 def export_experiment(result: ExperimentResult, output_dir: Path) -> None:
@@ -34,3 +34,23 @@ def export_experiment(result: ExperimentResult, output_dir: Path) -> None:
         policy_result.alighting_events.to_csv(policy_dir / "alighting_events.csv", index=False)
         policy_result.stop_events.to_csv(policy_dir / "stop_events.csv", index=False)
         policy_result.dispatch_events.to_csv(policy_dir / "dispatch_events.csv", index=False)
+
+
+def export_batch(result: BatchResult, output_dir: Path) -> None:
+    """Export compact aggregate tables for a multi-world batch.
+
+    Full per-passenger/per-stop event logs are intentionally not duplicated for
+    every world; ``runs.csv`` records the seeds needed to reproduce any run.
+    """
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    result.comparison.to_csv(output_dir / "runs.csv", index=False)
+    result.summary.to_csv(output_dir / "summary.csv", index=False)
+    result.paired_comparison.to_csv(
+        output_dir / "paired_comparison.csv", index=False
+    )
+    result.paired_summary.to_csv(output_dir / "paired_summary.csv", index=False)
+    result.day_type_comparison.to_csv(
+        output_dir / "day_type_comparison.csv", index=False
+    )
+    result.event_runs.to_csv(output_dir / "event_runs.csv", index=False)

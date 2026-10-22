@@ -120,6 +120,11 @@ def simulate_day(
     stop_rows: list[dict] = []
     dispatch_rows: list[dict] = []
 
+    # Historical route forecasts are independent of the particular idle bus.
+    # Cache them per route/minute so multiple bus decisions on the same tick do
+    # not repeat the same future-demand integration.
+    route_prediction_cache: dict[tuple[str, float], tuple[float | None, float]] = {}
+
     def passenger_process(station_id: str, station_demand: pd.DataFrame):
         station = stations[station_id]
         rng = station_rngs[station_id]
@@ -155,12 +160,12 @@ def simulate_day(
         served_at = last_served[station_id]
         predicted_lambda = (
             prediction_provider(station_id, env.now)
-            if prediction_provider is not None
+            if policy.requires_history and prediction_provider is not None
             else None
         )
         sensor_occupancy = (
             sensor_provider(station_id, env.now, stations[station_id].waiting_count)
-            if sensor_provider is not None
+            if policy.requires_sensor and sensor_provider is not None
             else None
         )
         return StationObservation(
@@ -186,23 +191,48 @@ def simulate_day(
             route_station_observations = [
                 station_lookup[station_id] for station_id in route.stations
             ]
-            predicted_values = [
-                obs.predicted_lambda
-                for obs in route_station_observations
-                if obs.predicted_lambda is not None
-            ]
-            predicted_arrivals = (
-                sum(predicted_values) * config.prediction_horizon_minutes
-                if len(predicted_values) == len(route_station_observations)
-                else None
+            prediction_window = min(
+                config.prediction_horizon_minutes,
+                max(0.0, config.service_end - env.now),
             )
+            predicted_arrivals: float | None = None
+            if policy.requires_history and prediction_provider is not None and prediction_window > 0:
+                cache_key = (route.id, float(env.now))
+                cached = route_prediction_cache.get(cache_key)
+                if cached is not None:
+                    predicted_arrivals, prediction_window = cached
+                else:
+                    fast_forecast = getattr(prediction_provider, "predict_arrivals", None)
+                    if callable(fast_forecast):
+                        predicted_arrivals = fast_forecast(
+                            route.stations, env.now, prediction_window
+                        )
+                    else:
+                        predicted_arrivals = 0.0
+                        for station_id in route.stations:
+                            offset = 0.0
+                            while offset < prediction_window - 1e-9:
+                                step = min(1.0, prediction_window - offset)
+                                sample_time = env.now + offset + step / 2.0
+                                predicted_lambda = prediction_provider(station_id, sample_time)
+                                if predicted_lambda is None:
+                                    predicted_arrivals = None
+                                    break
+                                predicted_arrivals += predicted_lambda * step
+                                offset += step
+                            if predicted_arrivals is None:
+                                break
+                    route_prediction_cache[cache_key] = (
+                        predicted_arrivals,
+                        prediction_window,
+                    )
             sensor_values = [
                 obs.sensor_occupancy
                 for obs in route_station_observations
                 if obs.sensor_occupancy is not None
             ]
             route_sensor = (
-                float(sum(sensor_values))
+                float(np.mean(sensor_values))
                 if len(sensor_values) == len(route_station_observations)
                 else None
             )
@@ -225,6 +255,7 @@ def simulate_day(
                     can_complete_before_service_end=(
                         env.now + route.trip_minutes <= config.service_end + 1e-9
                     ),
+                    prediction_window_minutes=prediction_window,
                 )
             )
 
@@ -393,6 +424,7 @@ def simulate_day(
                         "route_trip_minutes": route.trip_minutes,
                         "expected_return_time": env.now + route.trip_minutes,
                         "policy_reason": decision.reason,
+                        "policy_score": decision.score,
                     }
                 )
                 env.process(route_process(bus_id, route, env.now))

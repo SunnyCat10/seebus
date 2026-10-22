@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from seebus_sim.config import default_experiment_config
-from seebus_sim.experiments import PolicySpec, run_experiment
+from seebus_sim.experiments import default_policy_specs, run_experiment
 from seebus_sim.reporting import (
     export_experiment,
     print_experiment_summary,
@@ -13,16 +13,11 @@ from seebus_sim.reporting import (
     save_profile_comparison_plot,
     save_station_wait_plot,
 )
-from seebus_sim.transit import StaticPolicy
 
 
 def main() -> None:
     config = default_experiment_config()
-
-    # Add future policies here. Every policy replays the same benchmark demand.
-    policies = [
-        PolicySpec("Static", StaticPolicy),
-    ]
+    policies = default_policy_specs()
 
     result = run_experiment(config, policies)
 

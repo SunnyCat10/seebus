@@ -37,11 +37,12 @@ class RouteObservation:
     station_ids: tuple[str, ...]
     trip_minutes: float
     predicted_arrivals_next_horizon: float | None
-    sensor_occupancy: float | None
+    sensor_occupancy: float | None  # mean noisy station occupancy on the route
     last_dispatch_time: float | None
     minutes_since_dispatch: float | None
     buses_in_service: int
     can_complete_before_service_end: bool
+    prediction_window_minutes: float | None = None
 
 
 @dataclass(frozen=True)
@@ -83,15 +84,29 @@ class DispatchDecision:
 
     route_id: str
     reason: str = ""
+    score: float | None = None
 
 
 class SchedulingPolicy(ABC):
-    """Interface implemented by all SeeBus route-allocation policies."""
+    """Interface implemented by all SeeBus route-allocation policies.
+
+    Policies declare which observation channels they require. The simulator can
+    then avoid computing historical forecasts or sensor readings for policies
+    that never use them, which keeps large policy-comparison batches fast.
+    """
 
     @property
     @abstractmethod
     def name(self) -> str:
         raise NotImplementedError
+
+    @property
+    def requires_history(self) -> bool:
+        return False
+
+    @property
+    def requires_sensor(self) -> bool:
+        return False
 
     @abstractmethod
     def decide_dispatch(self, context: PolicyContext) -> DispatchDecision | None:

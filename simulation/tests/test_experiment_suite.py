@@ -2,7 +2,14 @@ from dataclasses import replace
 
 from seebus_sim.config import DemandConfig, ExperimentConfig
 from seebus_sim.experiments import PolicySpec, run_batch, run_experiment
-from seebus_sim.transit import RouteConfig, StaticPolicy, TransitConfig
+from seebus_sim.transit import (
+    HistoricalPolicy,
+    HybridPolicy,
+    RouteConfig,
+    SensorPolicy,
+    StaticPolicy,
+    TransitConfig,
+)
 
 
 def _tiny_config(name: str = "tiny", demand_seed: int = 10) -> ExperimentConfig:
@@ -53,3 +60,35 @@ def test_batch_combines_experiment_summaries():
 
     assert len(result.experiments) == 2
     assert set(result.comparison["experiment"]) == {"first", "second"}
+
+
+def test_experiment_runner_compares_policies_on_same_generated_world():
+    result = run_experiment(
+        _tiny_config(),
+        [
+            PolicySpec("Static", StaticPolicy),
+            PolicySpec("Historical", HistoricalPolicy),
+        ],
+    )
+
+    assert list(result.policies) == ["Static", "Historical"]
+    assert set(result.comparison["policy"]) == {"Static", "Historical"}
+    assert result.comparison["generated_passengers"].nunique() == 1
+    assert result.policies["Historical"].policy_name == "historical"
+    assert "policy_score" in result.policies["Historical"].dispatch_events.columns
+
+
+def test_experiment_runner_supports_sensor_and_hybrid_policies():
+    result = run_experiment(
+        _tiny_config(),
+        [
+            PolicySpec("Static", StaticPolicy),
+            PolicySpec("Sensor", SensorPolicy),
+            PolicySpec("Hybrid", HybridPolicy),
+        ],
+    )
+
+    assert set(result.comparison["policy"]) == {"Static", "Sensor", "Hybrid"}
+    assert result.comparison["generated_passengers"].nunique() == 1
+    assert result.policies["Sensor"].policy_name == "sensor"
+    assert result.policies["Hybrid"].policy_name == "hybrid"

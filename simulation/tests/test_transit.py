@@ -154,3 +154,210 @@ def test_policy_controls_route_and_when_but_not_mid_route():
             "b2",
             config.hub_id,
         ]
+
+
+def _policy_context_for_history(*, now: float, a_prediction: float, b_prediction: float):
+    from seebus_sim.transit.policies import (
+        BusObservation,
+        HistoricalPolicy,
+        PolicyContext,
+        RouteObservation,
+        StationObservation,
+    )
+
+    stations = (
+        StationObservation("a1", "route-a", a_prediction / 2, None, None, None),
+        StationObservation("a2", "route-a", a_prediction / 2, None, None, None),
+        StationObservation("b1", "route-b", b_prediction / 2, None, None, None),
+        StationObservation("b2", "route-b", b_prediction / 2, None, None, None),
+    )
+    routes = (
+        RouteObservation(
+            "route-a", ("a1", "a2"), 15.0, a_prediction * 30, None,
+            0.0, now, 0, True,
+        ),
+        RouteObservation(
+            "route-b", ("b1", "b2"), 15.0, b_prediction * 30, None,
+            0.0, now, 0, True,
+        ),
+    )
+    return PolicyContext(
+        now=now,
+        scenario_day=1,
+        weekday="Monday",
+        bus=BusObservation("bus-1", 75, 1),
+        stations=stations,
+        routes=routes,
+        service_start=0.0,
+        service_end=1440.0,
+        static_dispatch_interval_minutes=6.0,
+        prediction_horizon_minutes=30.0,
+    ), HistoricalPolicy
+
+
+def test_historical_policy_prefers_route_with_more_predicted_pressure():
+    context, HistoricalPolicy = _policy_context_for_history(
+        now=12.0,
+        a_prediction=3.0,
+        b_prediction=1.0,
+    )
+    decision = HistoricalPolicy().decide_dispatch(context)
+
+    assert decision is not None
+    assert decision.route_id == "route-a"
+    assert decision.score is not None
+    assert "historical pressure" in decision.reason
+
+
+def test_historical_policy_can_keep_bus_idle_when_routes_are_not_due():
+    from seebus_sim.transit.policies import (
+        BusObservation,
+        HistoricalPolicy,
+        PolicyContext,
+        RouteObservation,
+        StationObservation,
+    )
+
+    context = PolicyContext(
+        now=2.0,
+        scenario_day=1,
+        weekday="Monday",
+        bus=BusObservation("bus-1", 75, 1),
+        stations=(
+            StationObservation("a1", "route-a", 0.2, None, 0.0, 2.0),
+            StationObservation("a2", "route-a", 0.2, None, 0.0, 2.0),
+            StationObservation("b1", "route-b", 0.2, None, 0.0, 2.0),
+            StationObservation("b2", "route-b", 0.2, None, 0.0, 2.0),
+        ),
+        routes=(
+            RouteObservation("route-a", ("a1", "a2"), 15.0, 12.0, None, 0.0, 2.0, 0, True),
+            RouteObservation("route-b", ("b1", "b2"), 15.0, 12.0, None, 0.0, 2.0, 0, True),
+        ),
+        service_start=0.0,
+        service_end=1440.0,
+        static_dispatch_interval_minutes=6.0,
+        prediction_horizon_minutes=30.0,
+    )
+
+    assert HistoricalPolicy().decide_dispatch(context) is None
+
+
+def test_noisy_sensor_is_bounded_quantized_and_reproducible():
+    from seebus_sim.transit import NoisyOccupancySensor, SensorConfig
+
+    config = SensorConfig(
+        reference_queue_size=50,
+        noise_std=0.05,
+        precision=0.05,
+    )
+    sensor = NoisyOccupancySensor(
+        config,
+        station_ids=("a1",),
+        scenario_day=3,
+        seed=123,
+    )
+
+    first = sensor.read("a1", 100.0, 25)
+    second = sensor.read("a1", 100.0, 25)
+
+    assert first == second
+    assert first is not None
+    assert 0.0 <= first <= 1.0
+    assert abs((first / config.precision) - round(first / config.precision)) < 1e-9
+
+
+def _policy_context_for_sensor(*, now: float, a_sensor: float, b_sensor: float):
+    from seebus_sim.transit.policies import (
+        BusObservation,
+        PolicyContext,
+        RouteObservation,
+        StationObservation,
+    )
+
+    stations = (
+        StationObservation("a1", "route-a", None, a_sensor, None, None),
+        StationObservation("a2", "route-a", None, a_sensor, None, None),
+        StationObservation("b1", "route-b", None, b_sensor, None, None),
+        StationObservation("b2", "route-b", None, b_sensor, None, None),
+    )
+    routes = (
+        RouteObservation(
+            "route-a", ("a1", "a2"), 15.0, None, a_sensor,
+            0.0, now, 0, True,
+        ),
+        RouteObservation(
+            "route-b", ("b1", "b2"), 15.0, None, b_sensor,
+            0.0, now, 0, True,
+        ),
+    )
+    return PolicyContext(
+        now=now,
+        scenario_day=1,
+        weekday="Monday",
+        bus=BusObservation("bus-1", 75, 1),
+        stations=stations,
+        routes=routes,
+        service_start=0.0,
+        service_end=1440.0,
+        static_dispatch_interval_minutes=6.0,
+        prediction_horizon_minutes=30.0,
+    )
+
+
+def test_sensor_policy_prefers_route_with_higher_live_occupancy():
+    from seebus_sim.transit import SensorPolicy
+
+    context = _policy_context_for_sensor(
+        now=12.0,
+        a_sensor=0.45,
+        b_sensor=0.20,
+    )
+    decision = SensorPolicy().decide_dispatch(context)
+
+    assert decision is not None
+    assert decision.route_id == "route-a"
+    assert "sensor pressure" in decision.reason
+
+
+def test_hybrid_policy_can_use_sensor_to_override_historical_preference():
+    from seebus_sim.transit.policies import (
+        BusObservation,
+        HybridPolicy,
+        PolicyContext,
+        RouteObservation,
+        StationObservation,
+    )
+
+    # Route A is historically busier, but route B currently has a large live
+    # occupancy reading. With the default 60% live-sensor weight, B should win.
+    context = PolicyContext(
+        now=12.0,
+        scenario_day=1,
+        weekday="Monday",
+        bus=BusObservation("bus-1", 75, 1),
+        stations=(
+            StationObservation("a1", "route-a", 1.5, 0.10, None, None),
+            StationObservation("a2", "route-a", 1.5, 0.10, None, None),
+            StationObservation("b1", "route-b", 0.5, 0.80, None, None),
+            StationObservation("b2", "route-b", 0.5, 0.80, None, None),
+        ),
+        routes=(
+            RouteObservation(
+                "route-a", ("a1", "a2"), 15.0, 3.0 * 30, 0.10,
+                0.0, 12.0, 0, True, 30.0,
+            ),
+            RouteObservation(
+                "route-b", ("b1", "b2"), 15.0, 1.0 * 30, 0.80,
+                0.0, 12.0, 0, True, 30.0,
+            ),
+        ),
+        service_start=0.0,
+        service_end=1440.0,
+        static_dispatch_interval_minutes=6.0,
+        prediction_horizon_minutes=30.0,
+    )
+
+    decision = HybridPolicy().decide_dispatch(context)
+    assert decision is not None
+    assert decision.route_id == "route-b"
+    assert "hybrid pressure" in decision.reason

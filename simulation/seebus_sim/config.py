@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from seebus_sim.transit import RouteConfig, TransitConfig
+from seebus_sim.transit import RouteConfig, SensorConfig, TransitConfig
 
 
 @dataclass(frozen=True)
@@ -33,8 +33,10 @@ class ExperimentConfig:
     name: str
     demand: DemandConfig
     transit: TransitConfig
+    sensor: SensorConfig = SensorConfig()
     demand_seed: int = 42
     transit_seed: int = 2026
+    sensor_seed: int = 31415
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -69,6 +71,12 @@ def default_experiment_config() -> ExperimentConfig:
             bus_capacity=75,
             static_dispatch_interval_minutes=6.0,
         ),
+        sensor=SensorConfig(
+            reference_queue_size=50,
+            noise_std=0.05,
+            precision=0.05,
+        ),
         demand_seed=42,
         transit_seed=2026,
+        sensor_seed=31415,
     )

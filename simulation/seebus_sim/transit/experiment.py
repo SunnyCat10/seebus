@@ -6,6 +6,7 @@ import pandas as pd
 from seebus_sim.transit.config import TransitConfig
 from seebus_sim.transit.metrics import wait_summary
 from seebus_sim.transit.policies import SchedulingPolicy, StaticPolicy
+from seebus_sim.transit.sensors import NoisyOccupancySensor, SensorConfig
 from seebus_sim.transit.simulation import (
     PredictionProvider,
     SensorProvider,
@@ -46,6 +47,8 @@ def run_transit_experiment(
     seed: int = 2026,
     prediction_provider: PredictionProvider | None = None,
     sensor_provider: SensorProvider | None = None,
+    sensor_config: SensorConfig | None = None,
+    sensor_seed: int = 31415,
 ) -> TransitExperimentResult:
     """Replay every benchmark day with a fresh policy instance per day."""
 
@@ -54,6 +57,15 @@ def run_transit_experiment(
         day_demand = benchmark_demand[
             benchmark_demand["scenario_day"] == scenario_day
         ]
+        day_sensor_provider = sensor_provider
+        if day_sensor_provider is None and sensor_config is not None:
+            day_sensor_provider = NoisyOccupancySensor(
+                sensor_config,
+                station_ids=config.station_ids,
+                scenario_day=int(scenario_day),
+                seed=sensor_seed,
+            ).read
+
         day_results.append(
             simulate_day(
                 day_demand,
@@ -61,7 +73,7 @@ def run_transit_experiment(
                 policy_factory(),
                 seed=seed,
                 prediction_provider=prediction_provider,
-                sensor_provider=sensor_provider,
+                sensor_provider=day_sensor_provider,
             )
         )
 

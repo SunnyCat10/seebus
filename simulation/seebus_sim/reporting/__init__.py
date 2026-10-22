@@ -1,7 +1,9 @@
-from seebus_sim.reporting.console import print_experiment_summary
-from seebus_sim.reporting.dashboard import save_dashboard
-from seebus_sim.reporting.export import export_experiment
+from seebus_sim.reporting.console import print_batch_summary, print_experiment_summary
+from seebus_sim.reporting.dashboard import save_batch_dashboard, save_dashboard
+from seebus_sim.reporting.export import export_batch, export_experiment
 from seebus_sim.reporting.plots import (
+    save_batch_paired_plot,
+    save_batch_policy_plot,
     save_benchmark_variation_plot,
     save_convergence_plot,
     save_daily_wait_plot,
@@ -11,8 +13,13 @@ from seebus_sim.reporting.plots import (
 )
 
 __all__ = [
+    "export_batch",
     "export_experiment",
+    "print_batch_summary",
     "print_experiment_summary",
+    "save_batch_dashboard",
+    "save_batch_paired_plot",
+    "save_batch_policy_plot",
     "save_benchmark_variation_plot",
     "save_convergence_plot",
     "save_daily_wait_plot",

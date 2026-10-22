@@ -180,3 +180,53 @@ def save_station_wait_plot(
     fig.tight_layout()
     fig.savefig(path, dpi=150)
     plt.close(fig)
+
+
+def save_batch_policy_plot(comparison: pd.DataFrame, path: Path) -> None:
+    """Box plot of average waiting time across independently generated worlds."""
+    if comparison.empty:
+        return
+
+    policies = list(dict.fromkeys(comparison["policy"].tolist()))
+    values = [
+        comparison.loc[comparison["policy"] == policy, "average_wait_minutes"].to_numpy()
+        for policy in policies
+    ]
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    ax.boxplot(values, labels=policies, showmeans=True)
+    ax.set_title("Average passenger wait across simulated worlds")
+    ax.set_ylabel("Minutes")
+    ax.grid(True, axis="y", alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+
+
+def save_batch_paired_plot(
+    paired_comparison: pd.DataFrame,
+    path: Path,
+    baseline_policy: str,
+) -> None:
+    """Distribution of paired average-wait differences versus the baseline."""
+    if paired_comparison.empty:
+        return
+
+    policies = list(dict.fromkeys(paired_comparison["policy"].tolist()))
+    values = [
+        paired_comparison.loc[
+            paired_comparison["policy"] == policy,
+            "average_wait_minutes_delta",
+        ].to_numpy()
+        for policy in policies
+    ]
+
+    fig, ax = plt.subplots(figsize=(9, 5))
+    ax.boxplot(values, labels=policies, showmeans=True)
+    ax.axhline(0.0, linestyle="--", linewidth=1)
+    ax.set_title(f"Paired average-wait difference vs {baseline_policy}")
+    ax.set_ylabel("Minutes (negative is better)")
+    ax.grid(True, axis="y", alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
