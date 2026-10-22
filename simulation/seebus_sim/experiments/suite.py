@@ -11,8 +11,8 @@ import pandas as pd
 from seebus_sim.config import ExperimentConfig
 from seebus_sim.demand.predictors.average import AveragePoissonPredictor
 from seebus_sim.experiment import DemandExperimentResult, run_demand_experiment
-from seebus_sim.transit import SchedulingPolicy, StaticPolicy, TransitExperimentResult
-from seebus_sim.transit.experiment import run_transit_experiment
+from seebus_sim.transit.policies import SchedulingPolicy, StaticPolicy
+from seebus_sim.transit.experiment import TransitExperimentResult, run_transit_experiment
 
 
 PolicyFactory = Callable[[], SchedulingPolicy]
@@ -267,6 +267,10 @@ def _batch_comparison(experiments: Sequence[ExperimentResult]) -> pd.DataFrame:
         frame["demand_seed"] = result.config.demand_seed
         frame["transit_seed"] = result.config.transit_seed
         frame["sensor_seed"] = result.config.sensor_seed
+        frame["route_count"] = len(result.config.transit.routes)
+        frame["station_count"] = len(result.config.transit.station_ids)
+        frame["bus_count"] = result.config.transit.bus_count
+        frame["static_route_headway_minutes"] = result.config.transit.static_route_headway_minutes
         frame["benchmark_event_count"] = event_count
         frame["benchmark_event_days"] = len(event_days)
         frames.append(frame)
@@ -358,6 +362,14 @@ def _paired_comparison(
             "policy": row.policy,
             "baseline_policy": baseline_policy,
         }
+        for metadata_column in (
+            "route_count",
+            "station_count",
+            "bus_count",
+            "static_route_headway_minutes",
+        ):
+            if metadata_column in comparison.columns:
+                output[metadata_column] = getattr(row, metadata_column)
         for metric in metrics:
             value = float(getattr(row, metric))
             baseline_value = float(base[metric])
@@ -443,6 +455,9 @@ def _day_type_frame_for_experiment(
                     "run": run_index,
                     "experiment": result.config.name,
                     "policy": label,
+                    "route_count": len(result.config.transit.routes),
+                    "station_count": len(result.config.transit.station_ids),
+                    "bus_count": result.config.transit.bus_count,
                     "day_type": day_type,
                     "days": int(len(frame)),
                     "average_wait_minutes": float(frame["average_wait_minutes"].mean()),
@@ -465,6 +480,10 @@ def _event_run_row(run_index: int, result: ExperimentResult) -> dict:
         "demand_seed": result.config.demand_seed,
         "transit_seed": result.config.transit_seed,
         "sensor_seed": result.config.sensor_seed,
+        "route_count": len(result.config.transit.routes),
+        "station_count": len(result.config.transit.station_ids),
+        "bus_count": result.config.transit.bus_count,
+        "static_route_headway_minutes": result.config.transit.static_route_headway_minutes,
         "benchmark_events": int(len(benchmark)),
         "benchmark_event_days": int(benchmark["scenario_day"].nunique())
         if not benchmark.empty
@@ -479,6 +498,12 @@ def _digest_experiment(run_index: int, result: ExperimentResult) -> _BatchRunDig
     comparison["demand_seed"] = result.config.demand_seed
     comparison["transit_seed"] = result.config.transit_seed
     comparison["sensor_seed"] = result.config.sensor_seed
+    comparison["route_count"] = len(result.config.transit.routes)
+    comparison["station_count"] = len(result.config.transit.station_ids)
+    comparison["bus_count"] = result.config.transit.bus_count
+    comparison["static_route_headway_minutes"] = (
+        result.config.transit.static_route_headway_minutes
+    )
     comparison["benchmark_event_count"] = event_count
     comparison["benchmark_event_days"] = len(event_days)
     return _BatchRunDigest(

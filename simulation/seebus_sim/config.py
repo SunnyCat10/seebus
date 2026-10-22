@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 
-from seebus_sim.transit import RouteConfig, SensorConfig, TransitConfig
+from seebus_sim.scenarios import NetworkScenario, get_network_scenario
+from seebus_sim.transit.config import TransitConfig
+from seebus_sim.transit.sensors import SensorConfig
 
 
 @dataclass(frozen=True)
@@ -47,30 +49,18 @@ class ExperimentConfig:
         return self.transit.station_ids
 
 
-def default_experiment_config() -> ExperimentConfig:
-    """Baseline shared-hub experiment used by the research runner."""
+def experiment_config_for_scenario(
+    scenario: str | NetworkScenario,
+    *,
+    name: str | None = None,
+) -> ExperimentConfig:
+    """Create the standard research experiment on a chosen network scenario."""
 
-    routes = (
-        RouteConfig(
-            id="route-a",
-            stations=("station-a", "station-b"),
-            travel_minutes=5.0,
-        ),
-        RouteConfig(
-            id="route-b",
-            stations=("station-c", "station-d"),
-            travel_minutes=5.0,
-        ),
-    )
+    network = get_network_scenario(scenario) if isinstance(scenario, str) else scenario
     return ExperimentConfig(
-        name="baseline",
+        name=name or network.name,
         demand=DemandConfig(),
-        transit=TransitConfig(
-            routes=routes,
-            bus_count=3,
-            bus_capacity=75,
-            static_dispatch_interval_minutes=6.0,
-        ),
+        transit=network.to_transit_config(),
         sensor=SensorConfig(
             reference_queue_size=50,
             noise_std=0.05,
@@ -80,3 +70,11 @@ def default_experiment_config() -> ExperimentConfig:
         transit_seed=2026,
         sensor_seed=31415,
     )
+
+
+def default_experiment_config(
+    scenario: str | NetworkScenario = "small",
+) -> ExperimentConfig:
+    """Standard experiment; choose ``small`` or ``large`` network preset."""
+
+    return experiment_config_for_scenario(scenario)

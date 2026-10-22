@@ -1,4 +1,10 @@
+from __future__ import annotations
+
+import json
 from pathlib import Path
+
+import pandas as pd
+from pandas.errors import EmptyDataError
 
 from seebus_sim.experiments import BatchResult, ExperimentResult
 
@@ -36,8 +42,17 @@ def export_experiment(result: ExperimentResult, output_dir: Path) -> None:
         policy_result.dispatch_events.to_csv(policy_dir / "dispatch_events.csv", index=False)
 
 
-def export_batch(result: BatchResult, output_dir: Path) -> None:
-    """Export compact aggregate tables for a multi-world batch.
+def export_batch(
+    result: BatchResult,
+    output_dir: Path,
+    *,
+    metadata: dict | None = None,
+) -> None:
+    """Export a durable checkpoint for a multi-world batch.
+
+    This function intentionally writes the compact aggregate tables needed to
+    rebuild reports.  Call it *before* plotting/dashboard generation so a
+    reporting failure never destroys an expensive completed batch.
 
     Full per-passenger/per-stop event logs are intentionally not duplicated for
     every world; ``runs.csv`` records the seeds needed to reproduce any run.
@@ -54,3 +69,62 @@ def export_batch(result: BatchResult, output_dir: Path) -> None:
         output_dir / "day_type_comparison.csv", index=False
     )
     result.event_runs.to_csv(output_dir / "event_runs.csv", index=False)
+
+    manifest = {
+        "format_version": 1,
+        "baseline_policy": result.baseline_policy,
+        "runs": int(result.comparison["run"].nunique())
+        if not result.comparison.empty
+        else 0,
+        "policies": list(dict.fromkeys(result.comparison.get("policy", pd.Series(dtype=str)).tolist())),
+    }
+    if metadata:
+        manifest.update(metadata)
+    (output_dir / "batch_manifest.json").write_text(
+        json.dumps(manifest, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
+def _read_csv_or_empty(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(path)
+    except EmptyDataError:
+        return pd.DataFrame()
+
+
+def load_batch_checkpoint(
+    output_dir: Path,
+    *,
+    baseline_policy: str | None = None,
+) -> BatchResult:
+    """Reload a compact batch checkpoint without rerunning simulations.
+
+    The resulting ``BatchResult`` has an empty ``experiments`` list by design;
+    batch reports use only the aggregate tables saved by :func:`export_batch`.
+    """
+
+    runs_path = output_dir / "runs.csv"
+    if not runs_path.exists():
+        raise FileNotFoundError(
+            f"No batch checkpoint found at {runs_path}. Run the batch first."
+        )
+
+    manifest_path = output_dir / "batch_manifest.json"
+    manifest: dict = {}
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    baseline = baseline_policy or manifest.get("baseline_policy", "Static")
+    return BatchResult(
+        experiments=[],
+        comparison=_read_csv_or_empty(runs_path),
+        summary=_read_csv_or_empty(output_dir / "summary.csv"),
+        paired_comparison=_read_csv_or_empty(output_dir / "paired_comparison.csv"),
+        paired_summary=_read_csv_or_empty(output_dir / "paired_summary.csv"),
+        day_type_comparison=_read_csv_or_empty(output_dir / "day_type_comparison.csv"),
+        event_runs=_read_csv_or_empty(output_dir / "event_runs.csv"),
+        baseline_policy=str(baseline),
+    )

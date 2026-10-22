@@ -13,15 +13,24 @@ def print_experiment_summary(result: ExperimentResult) -> None:
         f"{demand.bucket_minutes}-minute buckets"
     )
     print(f"Demand-model benchmark MAE: {demand.mean_absolute_error:.3f} passengers/min")
-    route_text = ", ".join(
-        f"{route.id} ({' -> '.join(route.stations)}, {route.trip_minutes:g} min)"
-        for route in transit.routes
-    )
     print(
         f"Transit: shared hub={transit.hub_id} | "
+        f"{len(transit.routes)} routes | {len(transit.station_ids)} stations | "
         f"{transit.bus_count} buses x {transit.bus_capacity} capacity"
     )
-    print(f"Routes: {route_text}")
+    if len(transit.routes) <= 4:
+        route_text = ", ".join(
+            f"{route.id} ({' -> '.join(route.stations)}, {route.trip_minutes:g} min)"
+            for route in transit.routes
+        )
+        print(f"Routes: {route_text}")
+    else:
+        station_counts = ", ".join(str(len(route.stations)) for route in transit.routes)
+        trip_lengths = [route.trip_minutes for route in transit.routes]
+        print(f"Stations per route: [{station_counts}]")
+        print(
+            f"Route trip duration range: {min(trip_lengths):g}-{max(trip_lengths):g} min"
+        )
     print(
         f"Static control: one dispatch every "
         f"{transit.static_dispatch_interval_minutes:g} min, round-robin | "
@@ -58,6 +67,12 @@ def print_batch_summary(result: BatchResult) -> None:
     runs = int(result.comparison["run"].nunique()) if not result.comparison.empty else 0
     print(f"\n=== SeeBus batch: {runs} worlds ===")
     print(f"Baseline policy: {result.baseline_policy}")
+    if not result.comparison.empty and {"route_count", "station_count", "bus_count"}.issubset(result.comparison.columns):
+        first = result.comparison.iloc[0]
+        print(
+            f"Network: {int(first['route_count'])} routes | "
+            f"{int(first['station_count'])} stations | {int(first['bus_count'])} buses"
+        )
 
     if result.summary.empty:
         print("No batch results.")

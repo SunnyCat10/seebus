@@ -46,6 +46,42 @@ The policy cannot skip a station, reverse direction, switch routes mid-trip, or 
 Passengers also stay simple: each station belongs to one route and passengers travel only to a downstream station on that route or to the hub. Transfers and route choice are intentionally excluded.
 
 
+
+## Network scenarios
+
+The physical transit network is now a reusable configuration layer. Policies,
+demand generation, batching, and reporting do not depend on a fixed number of
+routes or stations.
+
+Two presets are included:
+
+- `small`: the original 2-route / 4-station / 3-bus control network.
+- `large`: 10 independent routes, 35 total stations with route sizes
+  `(2, 3, 4, 5, 3, 4, 2, 5, 4, 3)`, and 10 shared buses.
+
+The large preset uses 3 minutes per segment and a nominal 15-minute static
+headway per route. Because StaticPolicy dispatches routes round-robin, this is a
+global dispatch interval of 1.5 minutes.
+
+Create new scenarios in one place with `build_network_scenario()`:
+
+```python
+from seebus_sim.scenarios import build_network_scenario
+
+scenario = build_network_scenario(
+    name="custom",
+    station_counts=(2, 4, 3, 5),
+    bus_count=5,
+    bus_capacity=75,
+    travel_minutes=4.5,
+    static_route_headway_minutes=18,
+)
+```
+
+Every generated station belongs to exactly one route and every route starts and
+ends at the same hub, so increasing network size does not introduce transfers
+or passenger route-choice logic.
+
 ## Sensor model
 
 Live sensing is deliberately **imperfect**. Policies never receive the exact simulator queue length. Each station sensor converts the real queue to an approximate 0–100% occupancy reading:
@@ -109,22 +145,16 @@ pip install -r requirements.txt
 ## Run
 
 ```powershell
-python run.py
+# Fast original network
+python run.py --scenario small
+
+# 10-route / 35-station / 10-bus network
+python run.py --scenario large
 ```
 
-The default experiment uses:
-
-- 2 independent routes
-- 2 stations per route
-- one shared hub
-- 14 demand-training days
-- 30 unseen benchmark days
-- 15-minute historical demand buckets
-- 3 buses in one shared pool
-- 75-passenger capacity
-- 5 minutes per route segment
-- one static dispatch opportunity every 6 minutes
-- round-robin static control, giving each route a 12-minute nominal headway
+Both presets use the same demand-learning, policies, sensor model, metrics, and
+reporting pipeline. The network size/fleet is the only scenario-level transit
+configuration that changes.
 
 ## Output
 
@@ -289,10 +319,10 @@ PolicySpec(
 For statistical policy comparisons, use the dedicated batch CLI:
 
 ```powershell
-python run_batch.py --runs 5
-python run_batch.py --runs 10
-python run_batch.py --runs 30
-python run_batch.py --runs 100
+python run_batch.py --scenario small --runs 10
+python run_batch.py --scenario large --runs 10
+python run_batch.py --scenario large --runs 30 --workers 4
+python run_batch.py --scenario large --runs 100 --workers 4 --seed 12345
 ```
 
 Each batch run creates a new independently generated world, while **all policies inside that run see the same world**. This makes policy differences paired rather than comparing unrelated random demand.
@@ -300,14 +330,17 @@ Each batch run creates a new independently generated world, while **all policies
 A master seed makes the sequence reproducible:
 
 ```powershell
-python run_batch.py --runs 30 --seed 12345
+python run_batch.py --scenario large --runs 30 --seed 12345
 ```
 
 Worlds can be parallelized across CPU processes:
 
 ```powershell
-python run_batch.py --runs 30 --workers 4
-python run_batch.py --runs 100 --workers 8
+python run_batch.py --scenario large --runs 30 --workers 4
+python run_batch.py --scenario large --runs 100 --workers 4
+
+# Rebuild plots/report from a completed large-network checkpoint
+python run_batch.py --scenario large --runs 100 --report-only
 ```
 
 Parallelism is only across independent worlds. Each individual SimPy world remains deterministic and single-process. Top-level policy classes are pickleable and work with multiprocessing; if a future `PolicySpec` uses a lambda factory, use one worker or replace the lambda with a top-level factory.

@@ -1,6 +1,6 @@
 from seebus_sim.reporting.console import print_batch_summary, print_experiment_summary
 from seebus_sim.reporting.dashboard import save_batch_dashboard, save_dashboard
-from seebus_sim.reporting.export import export_batch, export_experiment
+from seebus_sim.reporting.export import export_batch, export_experiment, load_batch_checkpoint
 from seebus_sim.reporting.plots import (
     save_batch_paired_plot,
     save_batch_policy_plot,
@@ -15,6 +15,7 @@ from seebus_sim.reporting.plots import (
 __all__ = [
     "export_batch",
     "export_experiment",
+    "load_batch_checkpoint",
     "print_batch_summary",
     "print_experiment_summary",
     "save_batch_dashboard",

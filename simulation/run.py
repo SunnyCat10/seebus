@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import argparse
 from pathlib import Path
 
 from seebus_sim.config import default_experiment_config
@@ -13,15 +16,36 @@ from seebus_sim.reporting import (
     save_profile_comparison_plot,
     save_station_wait_plot,
 )
+from seebus_sim.scenarios import scenario_names
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run one SeeBus simulation world.")
+    parser.add_argument(
+        "--scenario",
+        choices=scenario_names(),
+        default="small",
+        help="Network preset to use (default: small).",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Output directory. Defaults to output for small, output/<scenario> otherwise.",
+    )
+    return parser
 
 
 def main() -> None:
-    config = default_experiment_config()
+    args = _parser().parse_args()
+    config = default_experiment_config(args.scenario)
     policies = default_policy_specs()
 
     result = run_experiment(config, policies)
 
-    output_dir = Path("output")
+    output_dir = args.output or (
+        Path("output") if args.scenario == "small" else Path("output") / args.scenario
+    )
     plots_dir = output_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
 

@@ -407,6 +407,15 @@ def save_batch_dashboard(result: BatchResult, path: Path) -> None:
     runs = int(result.comparison["run"].nunique()) if not result.comparison.empty else 0
     events = int(result.event_runs["benchmark_events"].sum()) if not result.event_runs.empty else 0
     event_worlds = int((result.event_runs["benchmark_events"] > 0).sum()) if not result.event_runs.empty else 0
+    if not result.comparison.empty and {"route_count", "station_count", "bus_count"}.issubset(result.comparison.columns):
+        first = result.comparison.iloc[0]
+        network_text = (
+            f"{int(first['route_count'])} routes · "
+            f"{int(first['station_count'])} stations · "
+            f"{int(first['bus_count'])} buses"
+        )
+    else:
+        network_text = "network configuration unavailable"
 
     html = f"""<!doctype html>
 <html lang="en">
@@ -433,7 +442,7 @@ h1 {{ margin-bottom: 6px; }}
 <body>
 <main>
 <h1>SeeBus batch report</h1>
-<p class="sub">{runs} independently generated worlds · baseline {escape(result.baseline_policy)} · {events} benchmark events across {event_worlds} worlds</p>
+<p class="sub">{runs} independently generated worlds · baseline {escape(result.baseline_policy)} · {network_text} · {events} benchmark events across {event_worlds} worlds</p>
 <div class="cards">{_batch_summary_cards(result)}</div>
 <div class="grid">
   <section class="panel">{figure_html[0]}</section>

@@ -80,3 +80,52 @@ def test_batch_day_type_rows_cover_every_policy_world_pair():
     ]
     assert normal["run"].nunique() == 2
     assert set(normal["policy"]) == {"Static"}
+
+
+def test_batch_checkpoint_round_trip(tmp_path):
+    from seebus_sim.reporting import export_batch, load_batch_checkpoint
+
+    configs = build_seeded_batch_configs(_tiny_base(), 2, base_seed=99)
+    result = run_batch(
+        configs,
+        [
+            PolicySpec("Static", StaticPolicy),
+            PolicySpec("Historical", HistoricalPolicy),
+        ],
+        baseline_policy="Static",
+        retain_experiments=False,
+    )
+
+    export_batch(result, tmp_path, metadata={"master_seed": 99})
+    loaded = load_batch_checkpoint(tmp_path)
+
+    assert loaded.experiments == []
+    assert loaded.baseline_policy == "Static"
+    assert len(loaded.comparison) == len(result.comparison)
+    assert set(loaded.comparison["policy"]) == {"Static", "Historical"}
+    assert (tmp_path / "batch_manifest.json").exists()
+
+
+def test_batch_boxplots_accept_current_matplotlib_api(tmp_path):
+    import pandas as pd
+
+    from seebus_sim.reporting import save_batch_paired_plot, save_batch_policy_plot
+
+    comparison = pd.DataFrame(
+        {
+            "policy": ["Static", "Static", "Historical", "Historical"],
+            "average_wait_minutes": [6.0, 6.2, 5.7, 5.9],
+        }
+    )
+    paired = pd.DataFrame(
+        {
+            "policy": ["Historical", "Historical"],
+            "average_wait_minutes_delta": [-0.3, -0.3],
+        }
+    )
+
+    save_batch_policy_plot(comparison, tmp_path / "policy.png")
+    save_batch_paired_plot(paired, tmp_path / "paired.png", "Static")
+
+    assert (tmp_path / "policy.png").exists()
+    assert (tmp_path / "paired.png").exists()

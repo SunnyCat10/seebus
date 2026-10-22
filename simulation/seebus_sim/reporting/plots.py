@@ -182,6 +182,21 @@ def save_station_wait_plot(
     plt.close(fig)
 
 
+def _boxplot_with_tick_labels(ax, values, labels, **kwargs) -> None:
+    """Draw a boxplot across Matplotlib versions.
+
+    Matplotlib renamed the boxplot keyword from ``labels`` to ``tick_labels``.
+    New releases reject ``labels`` while older releases do not know
+    ``tick_labels``, so prefer the new spelling and fall back only when needed.
+    """
+    try:
+        ax.boxplot(values, tick_labels=labels, **kwargs)
+    except TypeError as exc:
+        if "tick_labels" not in str(exc):
+            raise
+        ax.boxplot(values, labels=labels, **kwargs)
+
+
 def save_batch_policy_plot(comparison: pd.DataFrame, path: Path) -> None:
     """Box plot of average waiting time across independently generated worlds."""
     if comparison.empty:
@@ -194,7 +209,7 @@ def save_batch_policy_plot(comparison: pd.DataFrame, path: Path) -> None:
     ]
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.boxplot(values, labels=policies, showmeans=True)
+    _boxplot_with_tick_labels(ax, values, policies, showmeans=True)
     ax.set_title("Average passenger wait across simulated worlds")
     ax.set_ylabel("Minutes")
     ax.grid(True, axis="y", alpha=0.25)
@@ -222,7 +237,7 @@ def save_batch_paired_plot(
     ]
 
     fig, ax = plt.subplots(figsize=(9, 5))
-    ax.boxplot(values, labels=policies, showmeans=True)
+    _boxplot_with_tick_labels(ax, values, policies, showmeans=True)
     ax.axhline(0.0, linestyle="--", linewidth=1)
     ax.set_title(f"Paired average-wait difference vs {baseline_policy}")
     ax.set_ylabel("Minutes (negative is better)")

@@ -1,11 +1,12 @@
-"""Shared-hub transit simulation layer for SeeBus."""
+"""Shared-hub transit domain types and policy interfaces.
+
+The package initializer intentionally avoids importing the SimPy-backed
+simulation/experiment modules. This keeps configuration, scenarios, policies,
+and sensor models lightweight to import. Simulation entry points live in
+``seebus_sim.transit.experiment``.
+"""
 
 from seebus_sim.transit.config import RouteConfig, TransitConfig
-from seebus_sim.transit.experiment import (
-    TransitExperimentResult,
-    run_static_transit_experiment,
-    run_transit_experiment,
-)
 from seebus_sim.transit.policies import (
     BusObservation,
     DispatchDecision,
@@ -41,7 +42,4 @@ __all__ = [
     "StationObservation",
     "StaticPolicy",
     "TransitConfig",
-    "TransitExperimentResult",
-    "run_static_transit_experiment",
-    "run_transit_experiment",
 ]
