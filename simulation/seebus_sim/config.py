@@ -64,7 +64,7 @@ def experiment_config_for_scenario(
         sensor=SensorConfig(
             reference_queue_size=50,
             noise_std=0.05,
-            precision=0.05,
+            precision=0.01,
         ),
         demand_seed=42,
         transit_seed=2026,

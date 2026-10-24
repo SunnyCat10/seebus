@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from functools import cached_property
 
 
 @dataclass(frozen=True)
@@ -60,17 +61,25 @@ class PolicyContext:
     static_dispatch_interval_minutes: float
     prediction_horizon_minutes: float
 
+    @cached_property
+    def _station_lookup(self) -> dict[str, StationObservation]:
+        return {observation.station_id: observation for observation in self.stations}
+
+    @cached_property
+    def _route_lookup(self) -> dict[str, RouteObservation]:
+        return {observation.route_id: observation for observation in self.routes}
+
     def station(self, station_id: str) -> StationObservation:
-        for observation in self.stations:
-            if observation.station_id == station_id:
-                return observation
-        raise KeyError(station_id)
+        try:
+            return self._station_lookup[station_id]
+        except KeyError:
+            raise KeyError(station_id) from None
 
     def route(self, route_id: str) -> RouteObservation:
-        for observation in self.routes:
-            if observation.route_id == route_id:
-                return observation
-        raise KeyError(route_id)
+        try:
+            return self._route_lookup[route_id]
+        except KeyError:
+            raise KeyError(route_id) from None
 
 
 @dataclass(frozen=True)

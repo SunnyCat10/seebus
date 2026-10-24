@@ -32,38 +32,66 @@ class PoissonDemandGenerator:
         event_duration_range: tuple[int, int] = (45, 180),
     ):
         self.profile = profile
-        self.rng = rng
+        # Derive one stable root from the supplied split RNG, then use
+        # deterministic station/day substreams. This prevents a parameter sweep
+        # (especially event frequency) from perturbing unrelated later stations
+        # merely because one branch consumed a different number of random draws.
+        self.root_seed = int(rng.integers(0, 2**32, dtype=np.uint32))
+        self._station_index = {
+            station_id: index
+            for index, station_id in enumerate(profile.lambda_by_station_bucket)
+        }
         self.daily_noise_std = daily_noise_std
         self.event_probability = event_probability
         self.event_multiplier_range = event_multiplier_range
         self.event_duration_range = event_duration_range
 
-    def _daily_multiplier(self) -> float:
+    def _stream_rng(
+        self,
+        scenario_day: int,
+        station_id: str,
+        stream_id: int,
+    ) -> np.random.Generator:
+        return np.random.default_rng(
+            np.random.SeedSequence(
+                [self.root_seed, scenario_day, self._station_index[station_id], stream_id]
+            )
+        )
+
+    def _daily_multiplier(self, rng: np.random.Generator) -> float:
         # A centered log-normal multiplier keeps the value positive while
         # preserving an expected multiplier close to 1.0.
         sigma = self.daily_noise_std
-        return float(self.rng.lognormal(mean=-0.5 * sigma * sigma, sigma=sigma))
+        return float(rng.lognormal(mean=-0.5 * sigma * sigma, sigma=sigma))
 
-    def _maybe_generate_event(self, scenario_day: int, station_id: str) -> dict | None:
-        if self.rng.random() >= self.event_probability:
-            return None
+    def _maybe_generate_event(
+        self,
+        scenario_day: int,
+        station_id: str,
+        rng: np.random.Generator,
+    ) -> dict | None:
+        occurs = rng.random() < self.event_probability
 
-        # Most one-off transport demand events are more interesting during
-        # daytime/evening than at 03:00, so sample from 08:00-22:00.
-        start = int(self.rng.integers(8 * 60, 22 * 60))
+        # Draw event details regardless of whether this parameter setting
+        # activates the event. Common events therefore keep the same timing and
+        # strength across nested event-frequency sweep points.
+        start = int(rng.integers(8 * 60, 22 * 60))
         duration = int(
-            self.rng.integers(
+            rng.integers(
                 self.event_duration_range[0],
                 self.event_duration_range[1] + 1,
             )
         )
         end = min(24 * 60, start + duration)
         multiplier = float(
-            self.rng.uniform(
+            rng.uniform(
                 self.event_multiplier_range[0],
                 self.event_multiplier_range[1],
             )
         )
+
+        if not occurs:
+            return None
 
         return {
             "event_id": f"event-{scenario_day}-{station_id}",
@@ -98,8 +126,11 @@ class PoissonDemandGenerator:
         for station_id, lambdas in self.profile.lambda_by_station_bucket.items():
             station_type = self.profile.station_types[station_id]
             weekday_factor = self.profile.get_weekday_factor(station_id, weekday_index)
-            daily_factor = self._daily_multiplier()
-            event = self._maybe_generate_event(scenario_day, station_id)
+            daily_rng = self._stream_rng(scenario_day, station_id, 1)
+            event_rng = self._stream_rng(scenario_day, station_id, 2)
+            arrivals_rng = self._stream_rng(scenario_day, station_id, 3)
+            daily_factor = self._daily_multiplier(daily_rng)
+            event = self._maybe_generate_event(scenario_day, station_id, event_rng)
 
             for minute in range(24 * 60):
                 bucket = minute // self.profile.bucket_minutes
@@ -117,7 +148,7 @@ class PoissonDemandGenerator:
                     * daily_factor
                     * event_factor
                 )
-                arrivals = int(self.rng.poisson(true_lambda))
+                arrivals = int(arrivals_rng.poisson(true_lambda))
 
                 rows.append(
                     {

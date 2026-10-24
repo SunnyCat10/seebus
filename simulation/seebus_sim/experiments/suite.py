@@ -156,6 +156,8 @@ def _comparison_frame(
 def run_experiment(
     config: ExperimentConfig,
     policies: Iterable[PolicySpec] | None = None,
+    *,
+    event_logging: str = "full",
 ) -> ExperimentResult:
     """
     Generate one demand world once, then replay the same benchmark for all policies.
@@ -184,15 +186,25 @@ def run_experiment(
     prediction_provider = _prediction_provider(demand_result)
     policy_results: dict[str, TransitExperimentResult] = {}
 
+    # The research dataset remains minute-dense for inspection/export, but the
+    # transit engine only needs minutes where passengers actually arrive. Build
+    # this sparse replay table once and share it across every policy instead of
+    # re-filtering 1,440 x station_count rows inside each policy/day.
+    benchmark_arrivals = demand_result.benchmark_demand.loc[
+        demand_result.benchmark_demand["arrivals"] > 0,
+        ["day", "scenario_day", "weekday", "station_id", "minute", "arrivals"],
+    ].copy()
+
     for spec in policy_specs:
         policy_results[spec.label] = run_transit_experiment(
-            benchmark_demand=demand_result.benchmark_demand,
+            benchmark_demand=benchmark_arrivals,
             config=config.transit,
             policy_factory=spec.factory,
             seed=config.transit_seed,
             prediction_provider=prediction_provider,
             sensor_config=config.sensor,
             sensor_seed=config.sensor_seed,
+            event_logging=event_logging,
         )
 
     return ExperimentResult(
@@ -518,7 +530,10 @@ def _run_batch_digest_worker(
     args: tuple[int, ExperimentConfig, list[PolicySpec]],
 ) -> _BatchRunDigest:
     run_index, config, policies = args
-    return _digest_experiment(run_index, run_experiment(config, policies))
+    return _digest_experiment(
+        run_index,
+        run_experiment(config, policies, event_logging="compact"),
+    )
 
 
 def run_batch(

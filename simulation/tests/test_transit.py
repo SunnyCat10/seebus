@@ -266,6 +266,101 @@ def test_noisy_sensor_is_bounded_quantized_and_reproducible():
     assert abs((first / config.precision) - round(first / config.precision)) < 1e-9
 
 
+def test_sensor_dropout_keeps_last_successful_server_reading():
+    from seebus_sim.transit import NoisyOccupancySensor, SensorConfig
+
+    config = SensorConfig(
+        reference_queue_size=50,
+        noise_std=0.0,
+        precision=0.01,
+        dropout_probability=0.0,
+    )
+    sensor = NoisyOccupancySensor(
+        config,
+        station_ids=("a1",),
+        scenario_day=1,
+        seed=456,
+    )
+
+    first = sensor.read("a1", 0.0, 25)
+    assert first == 0.5
+
+    # Model a lost packet at minute 1. The physical queue changed, but the
+    # backend still only knows the last successfully received 50% reading.
+    sensor._dropout[0, 1] = True
+    stale = sensor.read("a1", 1.0, 50)
+    assert stale == 0.5
+
+    # Once a later packet arrives, server state updates again.
+    sensor._dropout[0, 2] = False
+    fresh = sensor.read("a1", 2.0, 50)
+    assert fresh == 1.0
+
+
+def test_sensor_latest_reading_does_not_trigger_new_transmission():
+    from seebus_sim.transit import NoisyOccupancySensor, SensorConfig
+
+    sensor = NoisyOccupancySensor(
+        SensorConfig(noise_std=0.0, precision=0.01, dropout_probability=0.0),
+        station_ids=("a1",),
+        scenario_day=1,
+        seed=99,
+    )
+
+    assert sensor.latest_reading("a1", 0.0, 0) is None
+    sensor.sample("a1", 0.0, 25)
+    assert sensor.latest_reading("a1", 10.0, 50) == 0.5
+
+
+def test_sensor_updates_continue_while_bus_is_in_service():
+    class DispatchOnceSensorPolicy(SchedulingPolicy):
+        def __init__(self):
+            self.dispatched = False
+
+        @property
+        def name(self) -> str:
+            return "dispatch-once-sensor"
+
+        @property
+        def requires_sensor(self) -> bool:
+            return True
+
+        def decide_dispatch(self, context):
+            if self.dispatched:
+                return None
+            self.dispatched = True
+            return DispatchDecision("route-a", "initial dispatch")
+
+    config = TransitConfig(
+        routes=(RouteConfig("route-a", ("a1", "a2"), travel_minutes=5.0),),
+        bus_count=1,
+        bus_capacity=40,
+        service_end=20.0,
+        decision_interval_minutes=1.0,
+        static_dispatch_interval_minutes=10.0,
+    )
+    demand = _small_day(config, arrivals_per_station=1)
+    updates: list[float] = []
+
+    def update_sensor(station_id, minute, waiting_count):
+        if station_id == "a1":
+            updates.append(float(minute))
+        return 0.0
+
+    result = simulate_day(
+        demand,
+        config,
+        DispatchOnceSensorPolicy(),
+        sensor_provider=lambda station_id, minute, waiting_count: 0.0,
+        sensor_updater=update_sensor,
+    )
+
+    assert result.daily_metrics["dispatches"] == 1
+    # The only bus is busy from minute 0 through minute 15, but station packets
+    # still keep updating the backend once per simulated minute.
+    assert updates[:16] == [float(minute) for minute in range(16)]
+
+
 def _policy_context_for_sensor(*, now: float, a_sensor: float, b_sensor: float):
     from seebus_sim.transit.policies import (
         BusObservation,
@@ -361,3 +456,103 @@ def test_hybrid_policy_can_use_sensor_to_override_historical_preference():
     assert decision is not None
     assert decision.route_id == "route-b"
     assert "hybrid pressure" in decision.reason
+
+
+def test_hybrid_weight_endpoints_match_standalone_policies():
+    from seebus_sim.transit import HistoricalPolicy, HybridPolicy, SensorPolicy
+    from seebus_sim.transit.policies.hybrid import HybridPolicyConfig
+    from seebus_sim.transit.policies import (
+        BusObservation,
+        PolicyContext,
+        RouteObservation,
+        StationObservation,
+    )
+
+    context = PolicyContext(
+        now=12.0,
+        scenario_day=1,
+        weekday="Monday",
+        bus=BusObservation("bus-1", 75, 1),
+        stations=(
+            StationObservation("a1", "route-a", 1.5, 0.10, None, None),
+            StationObservation("a2", "route-a", 1.5, 0.10, None, None),
+            StationObservation("b1", "route-b", 0.5, 0.80, None, None),
+            StationObservation("b2", "route-b", 0.5, 0.80, None, None),
+        ),
+        routes=(
+            RouteObservation(
+                "route-a", ("a1", "a2"), 15.0, 3.0 * 30, 0.10,
+                0.0, 12.0, 0, True, 30.0,
+            ),
+            RouteObservation(
+                "route-b", ("b1", "b2"), 15.0, 1.0 * 30, 0.80,
+                0.0, 12.0, 0, True, 30.0,
+            ),
+        ),
+        service_start=0.0,
+        service_end=1440.0,
+        static_dispatch_interval_minutes=6.0,
+        prediction_horizon_minutes=30.0,
+    )
+
+    historical = HistoricalPolicy().decide_dispatch(context)
+    sensor = SensorPolicy().decide_dispatch(context)
+    history_only_hybrid = HybridPolicy(
+        HybridPolicyConfig(historical_weight=1.0, sensor_weight=0.0)
+    ).decide_dispatch(context)
+    sensor_only_hybrid = HybridPolicy(
+        HybridPolicyConfig(historical_weight=0.0, sensor_weight=1.0)
+    ).decide_dispatch(context)
+
+    assert historical is not None and history_only_hybrid is not None
+    assert sensor is not None and sensor_only_hybrid is not None
+    assert history_only_hybrid.route_id == historical.route_id
+    assert sensor_only_hybrid.route_id == sensor.route_id
+
+
+def test_compact_logging_preserves_metrics_but_drops_detailed_events():
+    config = _config()
+    demand = _small_day(config, arrivals_per_station=20)
+
+    full = simulate_static_day(demand, config, seed=123, event_logging="full")
+    compact = simulate_static_day(demand, config, seed=123, event_logging="compact")
+
+    assert compact.daily_metrics == full.daily_metrics
+    assert compact.wait_histogram == full.wait_histogram
+    assert compact.boarding_events.empty
+    assert compact.alighting_events.empty
+    assert compact.stop_events.empty
+    assert compact.dispatch_events.empty
+    assert compact.station_metrics.empty
+    assert compact.route_metrics.empty
+    assert compact.bus_metrics.empty
+
+
+def test_sparse_zero_minutes_do_not_change_transit_results():
+    config = _config()
+    sparse = _small_day(config, arrivals_per_station=8)
+
+    # Add many explicit zero-arrival minute rows.  The simulator should strip
+    # these before creating passenger processes, so they cannot change behavior.
+    zeros = []
+    for station_id in config.station_ids:
+        for minute in range(2, 60):
+            zeros.append(
+                {
+                    "day": 15,
+                    "scenario_day": 1,
+                    "weekday": "Monday",
+                    "station_id": station_id,
+                    "minute": minute,
+                    "arrivals": 0,
+                }
+            )
+    dense = pd.concat([sparse, pd.DataFrame(zeros)], ignore_index=True).sort_values(
+        ["station_id", "minute"]
+    )
+
+    sparse_result = simulate_static_day(sparse, config, seed=321)
+    dense_result = simulate_static_day(dense, config, seed=321)
+
+    assert dense_result.daily_metrics == sparse_result.daily_metrics
+    pd.testing.assert_frame_equal(dense_result.boarding_events, sparse_result.boarding_events)

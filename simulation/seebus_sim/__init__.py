@@ -1,5 +1,7 @@
 """SeeBus simulation package."""
 
+SIMULATION_SCHEMA_VERSION = 18
+
 from seebus_sim.config import (
     DemandConfig,
     ExperimentConfig,
@@ -16,6 +18,7 @@ from seebus_sim.scenarios import (
 )
 
 __all__ = [
+    "SIMULATION_SCHEMA_VERSION",
     "DemandConfig",
     "ExperimentConfig",
     "NetworkScenario",

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from functools import cached_property
 
 
 @dataclass(frozen=True)
@@ -73,13 +74,21 @@ class TransitConfig:
         if self.destination_decay <= 0:
             raise ValueError("destination_decay must be > 0")
 
-    @property
+    @cached_property
     def station_ids(self) -> tuple[str, ...]:
         return tuple(station for route in self.routes for station in route.stations)
 
-    @property
+    @cached_property
     def route_ids(self) -> tuple[str, ...]:
         return tuple(route.id for route in self.routes)
+
+    @cached_property
+    def _route_by_id(self) -> dict[str, RouteConfig]:
+        return {route.id: route for route in self.routes}
+
+    @cached_property
+    def _route_by_station(self) -> dict[str, RouteConfig]:
+        return {station: route for route in self.routes for station in route.stations}
 
     @property
     def static_route_headway_minutes(self) -> float:
@@ -87,13 +96,13 @@ class TransitConfig:
         return self.static_dispatch_interval_minutes * len(self.routes)
 
     def route(self, route_id: str) -> RouteConfig:
-        for route in self.routes:
-            if route.id == route_id:
-                return route
-        raise KeyError(route_id)
+        try:
+            return self._route_by_id[route_id]
+        except KeyError:
+            raise KeyError(route_id) from None
 
     def route_for_station(self, station_id: str) -> RouteConfig:
-        for route in self.routes:
-            if station_id in route.stations:
-                return route
-        raise KeyError(station_id)
+        try:
+            return self._route_by_station[station_id]
+        except KeyError:
+            raise KeyError(station_id) from None

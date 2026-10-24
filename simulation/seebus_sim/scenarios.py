@@ -163,8 +163,9 @@ def large_network_scenario() -> NetworkScenario:
     """Larger shared-hub scenario for policy scaling experiments.
 
     Ten routes intentionally have different station counts while every station
-    still belongs to exactly one route. Ten buses share the common hub. The default timing keeps the larger network
-    challenging without making the static baseline trivially overloaded.
+    still belongs to exactly one route. Ten buses share the common hub. The
+    default timing keeps the larger network challenging without making the
+    static baseline trivially overloaded.
     """
 
     return build_network_scenario(

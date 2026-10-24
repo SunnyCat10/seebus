@@ -129,3 +129,30 @@ def test_batch_boxplots_accept_current_matplotlib_api(tmp_path):
 
     assert (tmp_path / "policy.png").exists()
     assert (tmp_path / "paired.png").exists()
+
+
+def test_nonretained_batch_uses_compact_experiments_without_changing_summary():
+    configs = build_seeded_batch_configs(_tiny_base(), 1, base_seed=123)
+    policies = [PolicySpec("Static", StaticPolicy)]
+
+    detailed = run_batch(
+        configs,
+        policies,
+        baseline_policy="Static",
+        retain_experiments=True,
+    )
+    compact = run_batch(
+        configs,
+        policies,
+        baseline_policy="Static",
+        retain_experiments=False,
+    )
+
+    # Batch comparison is the durable research output and must be identical.
+    import pandas as pd
+
+    pd.testing.assert_frame_equal(
+        detailed.comparison.reset_index(drop=True),
+        compact.comparison.reset_index(drop=True),
+    )
+    assert compact.experiments == []

@@ -4,11 +4,12 @@ from dataclasses import dataclass
 import pandas as pd
 
 from seebus_sim.transit.config import TransitConfig
-from seebus_sim.transit.metrics import wait_summary
+from seebus_sim.transit.metrics import WaitAccumulator
 from seebus_sim.transit.policies import SchedulingPolicy, StaticPolicy
 from seebus_sim.transit.sensors import NoisyOccupancySensor, SensorConfig
 from seebus_sim.transit.simulation import (
     PredictionProvider,
+    EventLoggingMode,
     SensorProvider,
     simulate_day,
 )
@@ -49,31 +50,44 @@ def run_transit_experiment(
     sensor_provider: SensorProvider | None = None,
     sensor_config: SensorConfig | None = None,
     sensor_seed: int = 31415,
+    event_logging: EventLoggingMode = "full",
 ) -> TransitExperimentResult:
     """Replay every benchmark day with a fresh policy instance per day."""
 
     day_results = []
-    for scenario_day in sorted(benchmark_demand["scenario_day"].unique()):
-        day_demand = benchmark_demand[
-            benchmark_demand["scenario_day"] == scenario_day
-        ]
+    # Group the benchmark once. The old implementation rescanned the entire
+    # benchmark DataFrame once for every day, which becomes expensive with
+    # 35+ stations and long batches.
+    for scenario_day, day_demand in benchmark_demand.groupby(
+        "scenario_day", sort=True
+    ):
+        day_policy = policy_factory()
         day_sensor_provider = sensor_provider
-        if day_sensor_provider is None and sensor_config is not None:
-            day_sensor_provider = NoisyOccupancySensor(
+        day_sensor_updater = None
+        if (
+            day_policy.requires_sensor
+            and day_sensor_provider is None
+            and sensor_config is not None
+        ):
+            sensor = NoisyOccupancySensor(
                 sensor_config,
                 station_ids=config.station_ids,
                 scenario_day=int(scenario_day),
                 seed=sensor_seed,
-            ).read
+            )
+            day_sensor_provider = sensor.latest_reading
+            day_sensor_updater = sensor.sample
 
         day_results.append(
             simulate_day(
                 day_demand,
                 config,
-                policy_factory(),
+                day_policy,
                 seed=seed,
                 prediction_provider=prediction_provider,
                 sensor_provider=day_sensor_provider,
+                sensor_updater=day_sensor_updater,
+                event_logging=event_logging,
             )
         )
 
@@ -97,20 +111,22 @@ def run_transit_experiment(
     total_waiting = int(daily_metrics["waiting_at_end"].sum())
     total_onboard = int(daily_metrics["onboard_at_end"].sum())
 
-    waits = wait_summary(boarding_events)
-    average_bus_utilization = (
-        float(bus_metrics["utilization"].mean()) if not bus_metrics.empty else 0.0
+    # Merge compact per-day wait histograms.  This gives exact passenger-
+    # weighted mean/median/P95/max even when the batch path did not retain any
+    # boarding-event DataFrames.
+    wait_accumulator = WaitAccumulator()
+    for result in day_results:
+        wait_accumulator.merge(WaitAccumulator.from_dict(result.wait_histogram))
+    waits = wait_accumulator.summary()
+
+    # Daily metrics already contain exact network-wide queue/fleet summaries.
+    # Since the set of stations/buses is fixed across benchmark days, averaging
+    # those day-level values is equivalent to averaging the detailed tables.
+    average_bus_utilization = float(daily_metrics["average_bus_utilization"].mean())
+    average_fleet_service_utilization = float(
+        daily_metrics["average_fleet_service_utilization"].mean()
     )
-    average_fleet_service_utilization = (
-        float(bus_metrics["service_utilization"].mean())
-        if not bus_metrics.empty
-        else 0.0
-    )
-    average_queue = (
-        float(station_metrics["average_queue"].mean())
-        if not station_metrics.empty
-        else 0.0
-    )
+    average_queue = float(daily_metrics["average_queue"].mean())
 
     summary = {
         "policy_name": policy_name,
@@ -124,7 +140,7 @@ def run_transit_experiment(
         "dispatches": int(daily_metrics["dispatches"].sum()),
         **waits,
         "average_queue": average_queue,
-        "max_queue": int(station_metrics["max_queue"].max()) if not station_metrics.empty else 0,
+        "max_queue": int(daily_metrics["max_queue"].max()) if not daily_metrics.empty else 0,
         "average_bus_utilization": average_bus_utilization,
         "average_fleet_service_utilization": average_fleet_service_utilization,
     }
@@ -150,10 +166,12 @@ def run_static_transit_experiment(
     config: TransitConfig,
     *,
     seed: int = 2026,
+    event_logging: EventLoggingMode = "full",
 ) -> TransitExperimentResult:
     return run_transit_experiment(
         benchmark_demand,
         config,
         policy_factory=StaticPolicy,
         seed=seed,
+        event_logging=event_logging,
     )

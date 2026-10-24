@@ -97,18 +97,24 @@ The default configuration uses:
 
 - 50 waiting passengers = 100% occupancy;
 - 5 percentage-point standard deviation (`noise_std=0.05`);
-- 5 percentage-point reporting precision (`precision=0.05`);
+- 1 percentage-point reporting precision (`precision=0.01`);
 - no dropout by default.
 
 So a true 50% occupancy might be reported as 45%, 50%, 55%, etc. Roughly 95% of the raw Gaussian error lies within about ±10 percentage points before clipping/rounding. The noise is seeded deterministically so experiments are reproducible.
 
-This model is configured through `SensorConfig`, which also includes a dropout probability for later robustness experiments.
+This model is configured through `SensorConfig`, which also includes a dropout
+probability for robustness experiments. Every station attempts one sensor update
+per decision interval (one minute by default), even while every bus is busy. A
+lost packet leaves the backend's last successfully received reading unchanged,
+so packet loss creates stale information rather than erasing sensor state.
 
 ## Current policies
 
 ### Static
 
-The control policy dispatches routes in a fixed round-robin timetable. With the default configuration, one bus is dispatched globally every 6 minutes, so each of the two routes receives a nominal 12-minute headway.
+The control policy dispatches routes in a fixed round-robin timetable. The exact
+global dispatch interval depends on the selected scenario and is chosen from its
+configured nominal per-route headway.
 
 ### Historical
 
@@ -219,7 +225,7 @@ The engine gives each idle bus a decision opportunity once per simulated minute 
 Policy-visible state includes:
 
 - learned historical demand per station;
-- future sensor estimates when a sensor provider is enabled;
+- live sensor estimates when a sensor provider is enabled;
 - time since each station was served;
 - time since each route was dispatched;
 - buses already active on each route;
@@ -230,7 +236,8 @@ The policy does **not** receive hidden true lambda, event multipliers, or the si
 
 ## Static control
 
-`StaticPolicy` dispatches one bus at fixed intervals and rotates routes round-robin:
+`StaticPolicy` dispatches one bus at fixed intervals and rotates routes
+round-robin. For example, the small two-route scenario uses:
 
 ```text
 00:00 -> Route A
@@ -240,7 +247,11 @@ The policy does **not** receive hidden true lambda, event multipliers, or the si
 ...
 ```
 
-The shared bus pool still constrains the timetable: a route can only be dispatched when an actual bus is idle at the hub.
+The shared bus pool still constrains the timetable: a route can only be
+dispatched when an actual bus is idle at the hub. The fleet-pressure sweep keeps
+the nominal Static timetable fixed while changing the available bus pool; this
+is a deliberate experimental assumption rather than automatically retuning the
+Static schedule for every fleet size.
 
 ## Architecture
 
@@ -367,6 +378,193 @@ The paired summary is usually the most useful research output. For example, it r
 
 Programmatically, `build_seeded_batch_configs()` + `run_batch()` can also be used for future sweeps over fleet size, event probability, sensor noise, or policy parameters without changing the simulator.
 
+
+## Experiment suites / parameter sweeps
+
+`run_suite.py` is the **batch-of-batches** layer used for robustness studies.
+Each sweep point is an ordinary paired multi-world batch, so all policies still
+see exactly the same synthetic world inside a run. The same master seed is also
+reused across parameter values, which means run 17 in the 6-bus experiment uses
+the same hidden demand world as run 17 in the 8-, 10-, 12-, and 14-bus
+experiments. Demand randomness is split into stable station/day substreams so
+changing event frequency does not perturb unrelated later stations or days;
+common events keep the same timing and strength across nested event-rate points.
+
+The default research suite uses the `large` network and a central baseline of:
+
+- 10 shared buses;
+- 1 expected one-off station-event per **network-day**;
+- 5 percentage points of Gaussian sensor measurement error;
+- 1 percentage-point sensor quantization precision;
+- 0% packet dropout outside the dedicated dropout sweep.
+
+It then varies one factor at a time:
+
+```text
+Fleet pressure:
+6, 8, 9, 10, 12, 14, 16, 18, 20 buses
+
+Event frequency:
+0, 0.1, 0.25, 0.5, 1 expected station-events / network-day
+
+Occupancy estimation accuracy:
+0%, 5%, 10%, 20%, 30%, 40%, 50%, 60%, 75%, 100% measurement-error sigma
+
+Packet dropout:
+0%, 5%, 10%, 20%, 40%, 60%, 80%, 90%, 100% lost sensor packets
+
+Hybrid sensor/history weight:
+0, 0.25, 0.5, 0.6, 0.75, 1.0 sensor weight
+(history weight = 1 - sensor weight)
+```
+
+Sensor accuracy varies `noise_std`; reporting precision remains fixed at 1
+percentage point so quantization contributes very little additional error. A
+`0%` noise point therefore approximates an ideal occupancy estimator. The
+packet-dropout sweep is separate: lost packets do not erase server state; the
+backend keeps using the last successfully received occupancy until a newer
+reading arrives. Stations attempt updates every minute regardless of fleet
+availability. At 100% dropout no sensor packet ever reaches the backend, so the
+Sensor policy falls back to its headway guard and Hybrid falls back to its
+historical signal.
+
+Hybrid combines the two normalized pressure signals as
+`history_weight * historical_pressure + sensor_weight * sensor_pressure`. The
+hybrid-weight sweep uses complementary weights summing to one: 0 sensor weight
+is history-only, 1 is sensor-only, and the default 0.6 point reproduces the
+normal 40% history / 60% sensor Hybrid configuration.
+
+The underlying demand generator still represents events as independent
+station/day Bernoulli opportunities. For the suite, the human-facing network
+rate is converted with:
+
+```text
+per-station event probability
+    = expected events per network-day / number of stations
+```
+
+so `1 event/day` on the 35-station network uses probability `1/35` per station
+per day. This keeps the existing hidden-world generator compatible while making
+the experimental parameter easy to explain.
+
+### Run one sweep
+
+During development, start with 5-10 worlds per point:
+
+```powershell
+python .\run_suite.py --scenario large --sweep fleet-pressure --runs 5 --workers 4 --seed 12345
+python .\run_suite.py --scenario large --sweep event-frequency --runs 10 --workers 4 --seed 12345
+python .\run_suite.py --scenario large --sweep sensor-accuracy --runs 10 --workers 4 --seed 12345
+python .\run_suite.py --scenario large --sweep packet-dropout --runs 10 --workers 4 --seed 12345
+python .\run_suite.py --scenario large --sweep hybrid-weight --runs 10 --workers 4 --seed 12345
+```
+
+### Run the full core suite
+
+```powershell
+python .\run_suite.py --scenario large --runs 30 --workers 8 --seed 12345
+```
+
+With the current defaults this is 39 separate batch points (9 fleet + 5 event +
+10 sensor-accuracy + 9 dropout + 6 hybrid-weight), so `--runs 30` means 1,170
+independently simulated worlds in total (each replayed by all registered policies). Use a small `--runs` value while iterating and reserve
+30-100 worlds per point for final analysis.
+
+Values are configurable from the command line:
+
+```powershell
+python .\run_suite.py `
+  --scenario large `
+  --runs 30 `
+  --workers 8 `
+  --fleet-values 6,8,9,10,12,14,16,18,20 `
+  --event-values 0,0.1,0.25,0.5,1 `
+  --sensor-error-values 0,5,10,20,30,40,50,60,75,100 `
+  --packet-dropout-values 0,5,10,20,40,60,80,90,100 `
+  --hybrid-sensor-weight-values 0,0.25,0.5,0.6,0.75,1
+```
+
+The central values used by the *other* sweeps can also be changed with
+`--base-buses`, `--base-events-per-day`, and `--base-sensor-error`.
+
+### Checkpoints and resume
+
+Every parameter value is checkpointed as soon as its batch completes:
+
+```text
+output/suite-large-30/
+├── fleet-pressure/
+│   ├── buses-06/
+│   ├── buses-08/
+│   ├── buses-10/
+│   ├── buses-12/
+│   └── buses-14/
+├── event-frequency/
+│   └── ...
+├── sensor-accuracy/
+│   └── ...
+├── packet-dropout/
+│   └── ...
+├── hybrid-weight/
+│   └── ...
+├── suite_runs.csv
+├── suite_summary.csv
+├── suite_paired_comparison.csv
+├── suite_paired_summary.csv
+├── suite_day_type_comparison.csv
+├── suite_event_runs.csv
+├── suite_benefit_vs_historical.csv
+├── suite_degradation_vs_perfect_sensor.csv
+├── suite_manifest.json
+├── report.html
+└── plots/
+```
+
+Rerunning the same command reuses compatible completed point checkpoints and
+continues with missing points. Checkpoint metadata includes the seed, run count,
+scenario, sweep, and parameter value so results from a different experiment are
+not silently reused.
+
+To regenerate only the aggregate CSVs/plots/report from completed checkpoints:
+
+```powershell
+python .\run_suite.py --scenario large --runs 30 --seed 12345 --report-only
+```
+
+Use `--force` to intentionally recompute every selected point.
+
+### Suite graphs
+
+For every sweep the report generates:
+
+1. mean average passenger wait vs the swept parameter, with 95% confidence
+   intervals for every policy;
+2. mean P95 passenger wait vs the parameter;
+3. paired average-wait difference versus Static, where negative values are
+   better.
+
+For the occupancy-estimation and packet-dropout sweeps it also generates two
+paired robustness views:
+
+4. **benefit over Historical** = Historical wait − policy wait, where positive
+   values mean imperfect sensing still provides value over history alone;
+5. **degradation vs perfect sensing / communication** = current wait − wait at
+   the 0% impairment point in the same synthetic world, where positive values
+   show the cost of an imperfect engineering solution.
+
+These extra views preserve the 100% failure endpoints as useful sanity checks
+without letting those outliers hide the smaller but meaningful degradation at
+lower impairment levels.
+
+The same long-form data are exported to CSV, so further plots or statistical
+analysis can be produced without rerunning the simulation.
+
+For the fleet sweep the nominal Static timetable/headway is intentionally held
+constant while the available fleet changes. This tests **resource pressure on
+the same service plan**: small fleets may miss dispatch opportunities, while
+adaptive policies may exploit additional idle buses differently as the fleet
+grows.
+
 ## Tests
 
 ```powershell
@@ -378,3 +576,113 @@ Tests cover demand reproducibility, passenger conservation, FIFO queues, unique 
 ## Intentional simplifications
 
 For now there is one shared hub, no transfers, no shared stations between routes, no road traffic, no route switching, no stop skipping, fixed segment travel times, and no passenger route choice. These constraints are intentional so the research stays focused on **how to allocate a limited shared bus fleet between routes over time**.
+
+## Performance notes
+
+The large network (10 routes / 35 stations / 10 buses) exercises the same
+simulation code as the small network, but v12 removes several costs that scaled
+poorly with network size:
+
+- **One policy snapshot per decision tick.** Historical forecasts and sensor
+  readings are computed once for the simulated minute and reused for every idle
+  bus. Bus-specific fields such as available-bus count, route dispatch age, and
+  buses already in service are updated cheaply between decisions.
+- **Pre-generated sensor error.** Each station/day now gets one seeded NumPy
+  noise/dropout stream that is generated as arrays up front. A sensor read is
+  then an O(1) lookup rather than constructing a fresh NumPy RNG for every
+  station/minute.
+- **Cached topology lookups.** Route IDs, station-to-route ownership, and policy
+  context lookups use cached dictionaries rather than repeatedly scanning all
+  routes.
+- **Single-pass pandas grouping.** Benchmark days and per-station demand are
+  grouped once instead of repeatedly boolean-filtering the full DataFrame.
+  Metric aggregation similarly groups boarding/dispatch events once before
+  computing per-station/per-route summaries.
+- **Cached passenger destination choices.** The fixed downstream destination
+  probabilities for each station are built once per simulated day rather than
+  recalculated by each passenger process.
+
+These changes do not alter Static or Historical policy semantics. The optimized
+sensor implementation preserves the configured noise distribution and paired
+reproducibility, but it uses a new deterministic random stream, so exact
+Sensor/Hybrid numbers from v11 should not be expected to match bit-for-bit.
+
+For a quick runtime check on your own machine, compare scenarios with the same
+small batch and one worker:
+
+```powershell
+Measure-Command { python .\run_batch.py --scenario small --runs 2 --workers 1 --seed 12345 }
+Measure-Command { python .\run_batch.py --scenario large --runs 2 --workers 1 --seed 12345 }
+```
+
+Use the same seed when comparing code versions so the generated worlds remain
+reproducible within each version.
+
+## Performance modes
+
+The simulator keeps the research dataset minute-dense for inspection/export, but
+transit replay is now sparse: before policies are evaluated, benchmark rows with
+`arrivals == 0` are removed once per generated world and the smaller arrival
+table is shared by every policy. Station passenger processes therefore jump
+from one real passenger-arrival minute to the next instead of looping over all
+1,440 minutes.
+
+Single-world runs keep **full event logging** so detailed boarding, alighting,
+stop, route, station, and bus CSVs are available for debugging and plots.
+
+Large batch runs automatically use **compact event logging**. Compact mode does
+not build the heavyweight per-boarding/per-stop DataFrames. Instead it keeps an
+exact passenger-weighted wait histogram internally, so average, median, P95,
+and maximum wait are unchanged. Daily queue, service, fleet-utilization, and
+passenger-conservation metrics are also still calculated exactly.
+
+In other words:
+
+```text
+python run.py --scenario large
+    -> full detailed logs
+
+python run_batch.py --scenario large --runs 100 --workers 4
+    -> sparse arrivals + compact logs
+    -> compact checkpoint/report tables only
+```
+
+Any interesting batch world can still be reproduced from the demand/transit/
+sensor seeds recorded in `runs.csv` and rerun as a detailed single experiment.
+
+For programmatic use, the transit layer accepts:
+
+```python
+run_transit_experiment(..., event_logging="full")
+run_transit_experiment(..., event_logging="compact")
+```
+
+Batch mode selects `compact` automatically when `retain_experiments=False`.
+
+
+## Focused policy-tuning matrix
+
+`run_tuning.py` is a deliberately separate secondary experiment. It keeps the
+large network at 10 buses and replays each generated world across a Cartesian
+grid of Historical predicted-load thresholds and Hybrid sensor/history weights.
+This checks whether the default 35% / 60%-sensor Hybrid result is part of a broad
+good region rather than a lucky single parameter choice.
+
+Default grid:
+
+- Historical target-load fraction: `0.15, 0.25, 0.35, 0.50, 0.70`
+- Hybrid sensor weight: `0.25, 0.50, 0.60, 0.75`
+
+The standalone Sensor policy and every Historical threshold are run in the same
+paired worlds. Hybrid is compared against Historical **at the same threshold**
+and against Sensor. All variants share the same generated demand world, so the
+grid is considerably cheaper and statistically cleaner than running independent
+batches for every cell.
+
+```powershell
+python .\run_tuning.py --scenario large --runs 10 --workers 10 --seed 20261024
+```
+
+Outputs include `historical_threshold_summary.csv`, `hybrid_grid_summary.csv`,
+three heatmaps, and an interactive `report.html`. Use this as a sensitivity /
+tuning study; do not replace the main one-factor-at-a-time suite with it.
