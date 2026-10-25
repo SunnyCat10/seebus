@@ -1,0 +1,146 @@
+{
+  "base_bus_count": 10,
+  "base_events_per_network_day": 1.0,
+  "base_sensor_error_percent": 5.0,
+  "baseline_policy": "Static",
+  "format_version": 1,
+  "master_seed": 20837195,
+  "runs_per_point": 32,
+  "scenario": "large",
+  "simulation_schema_version": 18,
+  "sweeps": [
+    {
+      "description": "Vary the size of the shared bus pool while keeping demand, routes, sensor quality, and the nominal static timetable unchanged.",
+      "labels": [
+        "6 buses",
+        "8 buses",
+        "9 buses",
+        "10 buses",
+        "12 buses",
+        "14 buses",
+        "16 buses",
+        "18 buses",
+        "20 buses"
+      ],
+      "name": "fleet-pressure",
+      "parameter": "bus_count",
+      "title": "Fleet pressure",
+      "values": [
+        6.0,
+        8.0,
+        9.0,
+        10.0,
+        12.0,
+        14.0,
+        16.0,
+        18.0,
+        20.0
+      ],
+      "x_label": "Shared buses"
+    },
+    {
+      "description": "Vary the expected number of unexpected station demand spikes per network-day. Internally this is converted to the equivalent per-station/day event probability.",
+      "labels": [
+        "0 events/day",
+        "0.1 events/day",
+        "0.25 events/day",
+        "0.5 events/day",
+        "1 events/day"
+      ],
+      "name": "event-frequency",
+      "parameter": "expected_events_per_network_day",
+      "title": "One-off event frequency",
+      "values": [
+        0.0,
+        0.1,
+        0.25,
+        0.5,
+        1.0
+      ],
+      "x_label": "Expected station-events per network-day"
+    },
+    {
+      "description": "Vary Gaussian occupancy-estimation error while keeping reporting quantization fixed at 1 percentage point. Lower values mean more accurate station occupancy estimates.",
+      "labels": [
+        "0% error \u03c3",
+        "5% error \u03c3",
+        "10% error \u03c3",
+        "20% error \u03c3",
+        "30% error \u03c3",
+        "40% error \u03c3",
+        "50% error \u03c3",
+        "60% error \u03c3",
+        "75% error \u03c3",
+        "100% error \u03c3"
+      ],
+      "name": "sensor-accuracy",
+      "parameter": "sensor_noise_std_percent",
+      "title": "Occupancy estimation accuracy",
+      "values": [
+        0.0,
+        5.0,
+        10.0,
+        20.0,
+        30.0,
+        40.0,
+        50.0,
+        60.0,
+        75.0,
+        100.0
+      ],
+      "x_label": "Occupancy estimation error \u03c3 (%)"
+    },
+    {
+      "description": "Vary independent sensor-packet loss. When a packet is lost, the server continues using the last successfully received occupancy reading until a newer packet arrives.",
+      "labels": [
+        "0% dropout",
+        "5% dropout",
+        "10% dropout",
+        "20% dropout",
+        "40% dropout",
+        "60% dropout",
+        "80% dropout",
+        "90% dropout",
+        "100% dropout"
+      ],
+      "name": "packet-dropout",
+      "parameter": "sensor_packet_dropout_percent",
+      "title": "Packet dropout",
+      "values": [
+        0.0,
+        5.0,
+        10.0,
+        20.0,
+        40.0,
+        60.0,
+        80.0,
+        90.0,
+        100.0
+      ],
+      "x_label": "Sensor packet dropout (%)"
+    },
+    {
+      "description": "Vary how Hybrid combines normalized historical-demand pressure and live sensor pressure. A sensor weight of 0 is history-only; 1 is sensor-only; intermediate values blend the two signals.",
+      "labels": [
+        "0.00 sensor / 1.00 history",
+        "0.25 sensor / 0.75 history",
+        "0.50 sensor / 0.50 history",
+        "0.60 sensor / 0.40 history",
+        "0.75 sensor / 0.25 history",
+        "1.00 sensor / 0.00 history"
+      ],
+      "name": "hybrid-weight",
+      "parameter": "hybrid_sensor_weight",
+      "title": "Hybrid sensor/history weight",
+      "values": [
+        0.0,
+        0.25,
+        0.5,
+        0.6,
+        0.75,
+        1.0
+      ],
+      "x_label": "Hybrid sensor weight (history weight = 1 \u2212 sensor weight)"
+    }
+  ]
+}
