@@ -1,165 +1,73 @@
 # SeeBus
 
-IoT-assisted adaptive bus scheduling system that collects bus-station
-occupancy estimates and dynamically adjusts bus schedules.
+**SeeBus** is a proof-of-concept system for adaptive public-transport scheduling. Smart bus stations estimate passenger occupancy, a central backend processes readings and calculates upcoming arrivals, and a web app displays the schedule and provides an administration interface.
 
-## Components
+The project also includes a **separate Python simulator** for comparing scheduling policies under different passenger-demand scenarios.
 
-- `backend` - Java / Spring Boot API and scheduling engine
-- `frontend` - React schedule viewer and admin interface
-- `firmware` - ESP32 station firmware
-- `deploy` - Deployment configuration
-- `scripts` - Development and deployment helpers
+## System overview
 
-## Local Development
+```text
+ESP32 station (hardware/) ── readings ──> Spring Boot API (backend/)
+                                               │
+                                  scheduling and configuration
+                                               │
+                                               ▼
+                                      React app (frontend/)
+                                      arrival board + admin
 
-Start the complete development environment:
+Python simulator (simulation/) ── offline policy experiments and reports
+```
+
+## Repository structure
+
+| Directory | What it contains |
+| --- | --- |
+| [`frontend/`](frontend/) | React, TypeScript, and Chakra UI application: public arrival board and admin dashboard. |
+| [`backend/`](backend/) | Java / Spring Boot REST API, station and bus management, readings, authentication, and scheduling policies. |
+| [`hardware/`](hardware/) | ESP32 firmware for the ultrasonic station prototype; sends occupancy readings to the backend. |
+| [`simulation/`](simulation/) | Standalone Python simulator for comparing scheduling strategies and generating experiment reports. |
+| [`deploy/`](deploy/) | Docker Compose configuration for deploying the backend. |
+| [`scripts/`](scripts/) | PowerShell tools for development, testing, and deployment. |
+| [`documentation/`](documentation/) | Detailed user and programmer documentation for the software, hardware, and simulation. |
+
+## Run the web application locally
+
+**Requirements:** Java 21, Node.js/npm, and PowerShell.
+
+From the repository root:
 
 ```powershell
+cd frontend
+npm ci
+cd ..
 .\scripts\dev.ps1
 ```
 
-This starts:
+The script starts the backend and frontend with the development settings in `.env.example`:
 
-```text
-Backend:     http://localhost:8080
-Frontend:    http://localhost:5173
-Swagger UI:  http://localhost:8080/swagger-ui.html
-```
+- **Web app:** http://localhost:5173
+- **Backend API:** http://localhost:8080
+- **Swagger UI:** http://localhost:8080/swagger-ui.html
 
-Local development uses the committed `.env.example` configuration by default.
+To use local environment overrides, create `.env` from `.env.example` and run `.\scripts\dev.ps1 -UseEnv`. Do not commit `.env` or other credentials.
 
-Press `Ctrl+C` to stop both the frontend and backend.
-
-### Local overrides
-
-To override the default development configuration:
+To test incoming readings without the physical station:
 
 ```powershell
-Copy-Item .env.example .env
-```
-
-Edit `.env`, then run:
-
-```powershell
-.\scripts\dev.ps1 -UseEnv
-```
-
-`.env.example` is loaded first and values from `.env` override it.
-
-Do not commit `.env`.
-
-## Mock Sensor Readings
-
-Send a reading to the local development server:
-
-```powershell
-.\scripts\mock-reading.ps1 `
-    -StationId station-1 `
-    -Occupancy 0.75 `
-    -Dev
-```
-
-`-Dev` uses `.env.example`, matching the configuration used by `dev.ps1`.
-
-To use the configuration from `.env` instead:
-
-```powershell
-.\scripts\mock-reading.ps1 `
-    -StationId station-1 `
-    -Occupancy 0.75
-```
-
-This can be used to send readings to another SeeBus environment by configuring:
-
-```dotenv
-SEEBUS_SENSOR_TOKEN=<sensor-token>
-SEEBUS_API_URL=https://<api-host>
-```
-
-## Environment Variables
-
-Important variables:
-
-| Variable | Description |
-| --- | --- |
-| `SEEBUS_SENSOR_TOKEN` | Sensor authentication token |
-| `SEEBUS_ADMIN_TOKEN` | Admin authentication token |
-| `SEEBUS_SWAGGER_ENABLED` | Enables Swagger/OpenAPI |
-| `SEEBUS_API_URL` | SeeBus API URL used by helper scripts |
-| `VITE_API_BASE_URL` | API URL used by the frontend |
-| `SEEBUS_DEPLOY_HOST` | Deployment server |
-
-`.env.example` contains safe development defaults.
-
-`.env` is ignored by Git and can contain local overrides or private values.
-
-> `VITE_*` variables are visible to frontend code and must not contain secrets.
-
-## API
-
-Health check:
-
-```text
-http://localhost:8080/api/health
-```
-
-Swagger UI:
-
-```text
-http://localhost:8080/swagger-ui.html
-```
-
-OpenAPI:
-
-```text
-http://localhost:8080/v3/api-docs
-```
-
-Swagger can also be opened with:
-
-```powershell
-.\scripts\api.ps1
+.\scripts\mock-reading.ps1 -StationId station-1 -Occupancy 0.75 -Dev
 ```
 
 ## Deployment
 
-Deploy using:
+- **Backend:** Docker Compose (`deploy/docker-compose.yml`) on a server, with an HTTPS proxy/tunnel in front of the API.
+- **Frontend:** Cloudflare Workers using `frontend/wrangler.jsonc` and the `npm run deploy` script.
 
-```powershell
-.\scripts\deploy.ps1
-```
+See the [software documentation](documentation/software/) for configuration, authentication, and deployment details. The `scripts/deploy.ps1` shortcut expects a server-side `deploy/deploy.sh` script that is not included in this repository.
 
-The deployment host is taken from:
+## Documentation
 
-```dotenv
-SEEBUS_DEPLOY_HOST
-```
+- [Software guides](documentation/software/) — web application usage, architecture, APIs, development, and deployment.
+- [Hardware guide](documentation/hardware/) — station prototype setup and configuration.
+- [Simulation guides](documentation/simulation/) — simulator usage, architecture, and experiments.
 
-or can be overridden:
-
-```powershell
-.\scripts\deploy.ps1 -HostName <host>
-```
-
-## Scripts
-
-```text
-scripts/
-├── setup.ps1
-├── load-env.ps1
-├── dev.ps1
-├── mock-reading.ps1
-├── api.ps1
-└── deploy.ps1
-```
-
-Typical development workflow:
-
-```powershell
-# Start SeeBus
-.\scripts\dev.ps1
-
-# In another terminal, send a mock reading
-.\scripts\mock-reading.ps1 -StationId station-1 -Occupancy 0.8 -Dev
-```
+For simulator commands and experiment details, see [`simulation/README.md`](simulation/README.md).
