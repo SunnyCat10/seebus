@@ -1,0 +1,21 @@
+{
+  "bus_count": 10,
+  "format_version": 1,
+  "master_seed": 20261024,
+  "runs": 10,
+  "scenario": "large",
+  "sensor_weights": [
+    0.25,
+    0.5,
+    0.6,
+    0.75
+  ],
+  "simulation_schema_version": 18,
+  "target_load_fractions": [
+    0.15,
+    0.25,
+    0.35,
+    0.5,
+    0.7
+  ]
+}
